@@ -35,6 +35,11 @@ namespace VoCards
                 sum += d.Words_Learnt_Deck;
             return sum;
         }
+        //Todo
+        public void SaveProgress()
+        {
+
+        }
     }
     class Deck
     {
