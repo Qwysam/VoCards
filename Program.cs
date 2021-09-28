@@ -11,7 +11,6 @@ namespace VoCards
     class Progress
     {
         private List<Deck> progress_list;
-        public List<Deck> Progress_List { get { return progress_list; } }
         private int words_total, words_learnt;
         public int Words_Total {
             get { words_total = CountTotalWords(progress_list); return words_total; }
@@ -77,12 +76,18 @@ namespace VoCards
         {
             progress_list.Add(deck);
         }
+
+        //indexer to reduce nesting
+        public Deck this[int i]
+        {
+            get { return progress_list[i]; }
+            set { progress_list[i] = value; }
+        }
     }
     [Serializable]
     class Deck
     {
         private List<Card> inner_deck;
-        public List<Card> Inner_Deck { get { return inner_deck; } }
         public string Topic { get; set; }
         int words_learnt_deck, words_total_deck;
         public int Words_Total_Deck{ get { return words_total_deck; } }
@@ -96,36 +101,42 @@ namespace VoCards
         }
         public void AddCard(Card card)
         {
-            Inner_Deck.Add(card);
+            inner_deck.Add(card);
             words_total_deck++;
         }
         public void CreateAndAdd(string front, string back)
         {
-            Inner_Deck.Add(new Card(front, back));
+            inner_deck.Add(new Card(front, back));
             words_total_deck++;
         }
         public void RemoveCard(int index)
         {
-            if (index < Inner_Deck.Count)
+            if (index < inner_deck.Count)
             {
                 words_total_deck--;
-                if (Inner_Deck[index].memorized)
+                if (inner_deck[index].memorized)
                     words_learnt_deck--;
-                Inner_Deck.RemoveAt(index);
+                inner_deck.RemoveAt(index);
             }
             else
                 throw new ArgumentOutOfRangeException();
         }
         public void CardMemorized(int index)
         {
-            if (index < Inner_Deck.Count)
+            if (index < inner_deck.Count)
             {
-                Inner_Deck[index].memorized = true;
+                inner_deck[index].memorized = true;
                 words_learnt_deck++;
             }
             else
                 throw new ArgumentOutOfRangeException();
 
+        }
+        //indexer to reduce nesting
+        public Card this[int i]
+        {
+            get { return inner_deck[i]; }
+            set { inner_deck[i] = value; }
         }
     }
     [Serializable]
