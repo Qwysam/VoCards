@@ -12,7 +12,7 @@ namespace VoCards
     {
         private List<Deck> progress_list;
         public List<Deck> Progress_List { get { return progress_list; } }
-        int words_total, words_learnt;
+        private int words_total, words_learnt;
         public int Words_Total {
             get { words_total = CountTotalWords(progress_list); return words_total; }
         }
@@ -41,32 +41,32 @@ namespace VoCards
                 sum += d.Words_Learnt_Deck;
             return sum;
         }
-        //Todo
-        public void SaveToXML(Progress progress)
-        {
-            XmlSerializer formatter = new XmlSerializer(typeof(Progress));
-            using (FileStream fs = new FileStream("save.xml", FileMode.Create))
-            {
-                formatter.Serialize(fs, progress);
-            }
-        }
-        //Todo
-        public void ReadFromXML(string path)
-        {
+        ////Todo
+        //public void SaveToXML(Progress progress)
+        //{
+        //    XmlSerializer formatter = new XmlSerializer(typeof(Progress));
+        //    using (FileStream fs = new FileStream("save.xml", FileMode.Create))
+        //    {
+        //        formatter.Serialize(fs, progress);
+        //    }
+        //}
+        ////Todo
+        //public void ReadFromXML(string path)
+        //{
 
-        }
+        //}
 
-        public void SaveToJSON(Progress progress)
-        {
-            string jsonString = JsonSerializer.Serialize(progress);
-            File.WriteAllText("save.json", jsonString);
-        }
+        //public void SaveToJSON(Progress progress)
+        //{
+        //    string jsonString = JsonSerializer.Serialize(progress);
+        //    File.WriteAllText("save.json", jsonString);
+        //}
 
-        public Progress ReadFrommJson(string path)
-        {
-            string text = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<Progress>(text);
-        }
+        //public Progress ReadFrommJson(string path)
+        //{
+        //    string text = File.ReadAllText(path);
+        //    return JsonSerializer.Deserialize<Progress>(text);
+        //}
 
         public void AddDeck(string topic)
         {
@@ -81,7 +81,8 @@ namespace VoCards
     [Serializable]
     class Deck
     {
-        public List<Card> Inner_Deck { get; set; }
+        private List<Card> inner_deck;
+        public List<Card> Inner_Deck { get { return inner_deck; } }
         public string Topic { get; set; }
         int words_learnt_deck, words_total_deck;
         public int Words_Total_Deck{ get { return words_total_deck; } }
@@ -91,11 +92,7 @@ namespace VoCards
             Topic = topic;
             words_learnt_deck = 0;
             words_total_deck = 0;
-            Inner_Deck = new List<Card>();
-        }
-        public Deck()
-        {
-
+            inner_deck = new List<Card>();
         }
         public void AddCard(Card card)
         {
@@ -143,7 +140,6 @@ namespace VoCards
             Back = back;
             memorized = false;
         }
-        public Card() { }
     }
 
     class Program
@@ -168,20 +164,7 @@ namespace VoCards
 
         static void Main(string[] args)
         {
-            Progress progress = new Progress();
-            Progress test_save = new Progress();
-            Deck test = new Deck("test_topic");
-            test.CreateAndAdd("test_front","test_back");
-            progress.AddDeck(test);
-            progress.Progress_List[0].AddCard(new Card("Cat", "кот"));
-            Console.WriteLine(progress.Progress_List[0].Topic);
-            Console.WriteLine(progress.Progress_List[0].Inner_Deck[0].Front);
-            //progress.SaveToJSON(progress);
-            //test_save = test_save.ReadFrommJson("save.json");
-            WriteToBinaryFile<Progress>("save.bin", progress);
-            test_save = ReadFromBinaryFile<Progress>("save.bin");
-            Console.WriteLine(test_save.Progress_List[0].Inner_Deck[0].Front);
-            Console.WriteLine(test_save.Progress_List[0].Topic);
+
         }
     }
 }
