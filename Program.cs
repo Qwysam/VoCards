@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Xml.Serialization;
-using System.Text.Json;
-
 namespace VoCards
 {
     //top entity that stores all other classes
@@ -23,6 +20,7 @@ namespace VoCards
         {
             words_total = 0;
             words_learnt = 0;
+            //list initialization
             progress_list = new List<Deck>();
         }
 
@@ -40,33 +38,6 @@ namespace VoCards
                 sum += d.Words_Learnt_Deck;
             return sum;
         }
-        ////Todo
-        //public void SaveToXML(Progress progress)
-        //{
-        //    XmlSerializer formatter = new XmlSerializer(typeof(Progress));
-        //    using (FileStream fs = new FileStream("save.xml", FileMode.Create))
-        //    {
-        //        formatter.Serialize(fs, progress);
-        //    }
-        //}
-        ////Todo
-        //public void ReadFromXML(string path)
-        //{
-
-        //}
-
-        //public void SaveToJSON(Progress progress)
-        //{
-        //    string jsonString = JsonSerializer.Serialize(progress);
-        //    File.WriteAllText("save.json", jsonString);
-        //}
-
-        //public Progress ReadFrommJson(string path)
-        //{
-        //    string text = File.ReadAllText(path);
-        //    return JsonSerializer.Deserialize<Progress>(text);
-        //}
-
         public void AddDeck(string topic)
         {
             progress_list.Add(new Deck(topic));
@@ -97,6 +68,7 @@ namespace VoCards
             Topic = topic;
             words_learnt_deck = 0;
             words_total_deck = 0;
+            //list initialization
             inner_deck = new List<Card>();
         }
         public void AddCard(Card card)
@@ -155,6 +127,7 @@ namespace VoCards
 
     class Program
     {
+        //methods to save progress in binary for easier access to private fields
         public static void WriteToBinaryFile<T>(string filePath, T objectToWrite, bool append = false)
         {
             using (Stream stream = File.Open(filePath, append ? FileMode.Append : FileMode.Create))
