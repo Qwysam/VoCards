@@ -1,12 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Xml.Serialization;
+using System.Text.Json;
 
 namespace VoCards
 {
     //top entity that stores all other classes
+    [Serializable]
     class Progress
     {
         private List<Deck> progress_list;
+        public List<Deck> Progress_List { get { return progress_list; } }
         int words_total, words_learnt;
         public int Words_Total {
             get { words_total = CountTotalWords(progress_list); return words_total; }
@@ -15,10 +20,11 @@ namespace VoCards
         {
             get { words_learnt = CountLearntWords(progress_list); return words_learnt; }
         }
-        Progress()
+        public Progress()
         {
             words_total = 0;
             words_learnt = 0;
+            progress_list = new List<Deck>();
         }
 
         private int CountTotalWords(List<Deck> list)
@@ -36,51 +42,88 @@ namespace VoCards
             return sum;
         }
         //Todo
-        public void SaveProgress()
+        public void SaveToXML(Progress progress)
+        {
+            XmlSerializer formatter = new XmlSerializer(typeof(Progress));
+            using (FileStream fs = new FileStream("save.xml", FileMode.Create))
+            {
+                formatter.Serialize(fs, progress);
+            }
+        }
+        //Todo
+        public void ReadFromXML(string path)
         {
 
         }
+
+        public void SaveToJSON(Progress progress)
+        {
+            string jsonString = JsonSerializer.Serialize(progress);
+            File.WriteAllText("save.json", jsonString);
+        }
+
+        public Progress ReadFrommJson(string path)
+        {
+            string text = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<Progress>(text);
+        }
+
+        public void AddDeck(string topic)
+        {
+            progress_list.Add(new Deck(topic));
+        }
+
+        public void AddDeck(Deck deck)
+        {
+            progress_list.Add(deck);
+        }
     }
+    [Serializable]
     class Deck
     {
-        private List<Card> inner_deck;
-        string topic;
+        public List<Card> Inner_Deck { get; set; }
+        public string Topic { get; set; }
         int words_learnt_deck, words_total_deck;
         public int Words_Total_Deck{ get { return words_total_deck; } }
         public int Words_Learnt_Deck { get { return words_learnt_deck; } }
         public Deck(string topic)
         {
-            this.topic = topic;
+            Topic = topic;
             words_learnt_deck = 0;
             words_total_deck = 0;
+            Inner_Deck = new List<Card>();
+        }
+        public Deck()
+        {
+
         }
         public void AddCard(Card card)
         {
-            inner_deck.Add(card);
+            Inner_Deck.Add(card);
             words_total_deck++;
         }
         public void CreateAndAdd(string front, string back)
         {
-            inner_deck.Add(new Card(front, back));
+            Inner_Deck.Add(new Card(front, back));
             words_total_deck++;
         }
         public void RemoveCard(int index)
         {
-            if (index < inner_deck.Count)
+            if (index < Inner_Deck.Count)
             {
                 words_total_deck--;
-                if (inner_deck[index].memorized)
+                if (Inner_Deck[index].memorized)
                     words_learnt_deck--;
-                inner_deck.RemoveAt(index);
+                Inner_Deck.RemoveAt(index);
             }
             else
                 throw new ArgumentOutOfRangeException();
         }
         public void CardMemorized(int index)
         {
-            if (index < inner_deck.Count)
+            if (index < Inner_Deck.Count)
             {
-                inner_deck[index].memorized = true;
+                Inner_Deck[index].memorized = true;
                 words_learnt_deck++;
             }
             else
@@ -88,23 +131,57 @@ namespace VoCards
 
         }
     }
-    class Card
+    [Serializable]
+    public class Card
     {
-        private string front,back;
+        public string Front { get; set; }
+        public string Back{get;set;}
         public bool memorized;
         public Card(string front, string back)
         {
-            this.front = front;
-            this.back = back;
+            Front = front;
+            Back = back;
             memorized = false;
         }
+        public Card() { }
     }
 
     class Program
     {
+        public static void WriteToBinaryFile<T>(string filePath, T objectToWrite, bool append = false)
+        {
+            using (Stream stream = File.Open(filePath, append ? FileMode.Append : FileMode.Create))
+            {
+                var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+                binaryFormatter.Serialize(stream, objectToWrite);
+            }
+        }
+
+        public static T ReadFromBinaryFile<T>(string filePath)
+        {
+            using (Stream stream = File.Open(filePath, FileMode.Open))
+            {
+                var binaryFormatter = new System.Runtime.Serialization.Formatters.Binary.BinaryFormatter();
+                return (T)binaryFormatter.Deserialize(stream);
+            }
+        }
+
         static void Main(string[] args)
         {
-
+            Progress progress = new Progress();
+            Progress test_save = new Progress();
+            Deck test = new Deck("test_topic");
+            test.CreateAndAdd("test_front","test_back");
+            progress.AddDeck(test);
+            progress.Progress_List[0].AddCard(new Card("Cat", "кот"));
+            Console.WriteLine(progress.Progress_List[0].Topic);
+            Console.WriteLine(progress.Progress_List[0].Inner_Deck[0].Front);
+            //progress.SaveToJSON(progress);
+            //test_save = test_save.ReadFrommJson("save.json");
+            WriteToBinaryFile<Progress>("save.bin", progress);
+            test_save = ReadFromBinaryFile<Progress>("save.bin");
+            Console.WriteLine(test_save.Progress_List[0].Inner_Deck[0].Front);
+            Console.WriteLine(test_save.Progress_List[0].Topic);
         }
     }
 }
