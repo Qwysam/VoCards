@@ -54,6 +54,20 @@ namespace VoCards
             get { return progress_list[i]; }
             set { progress_list[i] = value; }
         }
+
+        public void PrintAllTopics()
+        {
+            foreach (Deck deck in progress_list)
+                Console.Write($"{deck.Topic} ");
+        }
+        public bool HasTopic(string topic)
+        {
+            bool res = false;
+            foreach (Deck deck in progress_list)
+                if (topic == deck.Topic)
+                    res = true;
+            return res;
+        }
     }
     [Serializable]
     class Deck
@@ -145,10 +159,36 @@ namespace VoCards
                 return (T)binaryFormatter.Deserialize(stream);
             }
         }
-
+        public static void FillDecks(Progress progress)
+        {
+            progress.AddDeck("Animals");
+            progress.AddDeck("Jobs");
+            progress.AddDeck("Food");
+            List<Card> tmp_deck = new List<Card> { new Card("Cat", "Кот"), new Card("Horse", "Лошадь"), new Card("Dog", "Собака") };
+            foreach (Card card in tmp_deck)
+                progress[0].AddCard(card);
+            tmp_deck = new List<Card> { new Card("Firefighter", "Пожарный"), new Card("Lawyer", "Адвокат"), new Card("Teacher", "Учитель") };
+            foreach (Card card in tmp_deck)
+                progress[1].AddCard(card);
+            tmp_deck = new List<Card> { new Card("Pizza", "Пицца"), new Card("Soup", "Суп"), new Card("Bread", "Хлеб") };
+            foreach(Card card in tmp_deck)
+                progress[2].AddCard(card);
+        }
         static void Main(string[] args)
         {
-
+            Progress progress = new Progress();
+            FillDecks(progress);
+            int index = -1;
+            Console.WriteLine("Welcome to my flashcard app!");
+            for(; ; )
+            {
+                Console.WriteLine("Existing decks by topic: ");
+                progress.PrintAllTopics();
+                Console.WriteLine("Choose one of existing decks by typing it's topic or type 'New' to create a new one");
+                string input = Console.ReadLine();
+                if (input == "New" || progress.HasTopic(input))
+                    break;
+            }
         }
     }
 }
