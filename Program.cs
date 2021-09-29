@@ -59,7 +59,7 @@ namespace VoCards
         public void PrintAllTopics()
         {
             foreach (Deck deck in progress_list)
-                Console.Write($"{deck.Topic} ");
+                Console.Write($"{deck.Topic} \n");
         }
         public bool HasTopic(string topic)
         {
@@ -154,34 +154,32 @@ namespace VoCards
                     if (cards_count > 0 && cards_count <= available_cards)
                         break;
                 }
-                while (cards_count > 0)
+                int i = 0;
+                for (; i < Words_Total_Deck; i++)
                 {
-                    int i = 0;
-                    for (; i < Words_Total_Deck; i++)
-                    {
-                        if (!inner_deck[i].memorized)
-                        {
-                            Console.WriteLine("Card text: " + inner_deck[i].Front);
-                            string input;
+                if (!inner_deck[i].memorized)
+                {
+                        Console.WriteLine("Card text: " + inner_deck[i].Front);
+                        string input;
                             for (; ; )
                             {
-                                Console.WriteLine("Type 'Remember' to mark card as memorized or 'Flip' to see the translation");
-                                input = Console.ReadLine();
-                                if (input == "Remember")
-                                {
-                                    Console.WriteLine("Card marked as memorized.");
-                                    inner_deck[i].memorized = true;
-                                    break;
-                                }
-                                if(input == "Flip")
-                                {
-                                    Console.WriteLine("Translation : " + inner_deck[i].Back);
-                                    break;
-                                }
-
+                            Console.WriteLine("Type 'Remember' to mark card as memorized or 'Flip' to see the translation");
+                            input = Console.ReadLine();
+                            if (input == "Remember")
+                            {
+                            Console.WriteLine("Card marked as memorized.");
+                            CardMemorized(i);
+                            break;
                             }
-                            cards_count--;
+                            if(input == "Flip")
+                            {
+                                Console.WriteLine("Translation : " + inner_deck[i].Back);
+                                break;
+                            }
                         }
+                        cards_count -= 1;
+                        if (cards_count == 0)
+                            break;
                     }
                 }
             }
@@ -208,8 +206,8 @@ namespace VoCards
             Console.WriteLine("Input card front text:");
             string front = Console.ReadLine();
             Console.WriteLine("Input card back text:");
-            progress[progress.NumberOfDecks].CreateAndAdd(front, Console.ReadLine());
-            Console.WriteLine("Deck created successfully");
+            string back = Console.ReadLine();
+            progress[deck_index].CreateAndAdd(front, back);
         }
         public static void CreateUserDeck(Progress progress)
         {
@@ -217,6 +215,7 @@ namespace VoCards
             progress.AddDeck(Console.ReadLine());
             Console.WriteLine("Add at least one card");
             AddUserCard(progress, progress.NumberOfDecks-1);
+            Console.WriteLine("Deck created successfully");
         }
         //methods to save progress in binary for easier access to private fields
         public static void WriteToBinaryFile<T>(string filePath, T objectToWrite, bool append = false)
@@ -303,10 +302,12 @@ namespace VoCards
                             else
                             {
                                 progress[index].GoThroughCards();
+                                break;
                             }
                         }
                         break;
                 }
+                Console.WriteLine();
             }
         }
     }
