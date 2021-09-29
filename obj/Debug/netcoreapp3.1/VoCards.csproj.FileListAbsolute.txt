@@ -1,13 +1,12 @@
-/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.csproj.AssemblyReference.cache
-/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.GeneratedMSBuildEditorConfig.editorconfig
-/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.AssemblyInfoInputs.cache
-/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.AssemblyInfo.cs
-/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.csproj.CoreCompileInputs.cache
 /Users/qwysam/Projects/VoCards/VoCards/bin/Debug/netcoreapp3.1/VoCards.deps.json
 /Users/qwysam/Projects/VoCards/VoCards/bin/Debug/netcoreapp3.1/VoCards.runtimeconfig.json
 /Users/qwysam/Projects/VoCards/VoCards/bin/Debug/netcoreapp3.1/VoCards.runtimeconfig.dev.json
 /Users/qwysam/Projects/VoCards/VoCards/bin/Debug/netcoreapp3.1/VoCards.dll
 /Users/qwysam/Projects/VoCards/VoCards/bin/Debug/netcoreapp3.1/VoCards.pdb
+/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.GeneratedMSBuildEditorConfig.editorconfig
+/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.AssemblyInfoInputs.cache
+/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.AssemblyInfo.cs
+/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.csproj.CoreCompileInputs.cache
 /Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.dll
 /Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.pdb
 /Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.genruntimeconfig.cache
