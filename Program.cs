@@ -16,6 +16,7 @@ namespace VoCards
         {
             get { words_learnt = CountLearntWords(progress_list); return words_learnt; }
         }
+        public int NumberOfDecks { get { return progress_list.Count; } }
         public Progress()
         {
             words_total = 0;
@@ -67,6 +68,20 @@ namespace VoCards
                 if (topic == deck.Topic)
                     res = true;
             return res;
+        }
+        //find deck index by topic
+        public int FindByTopic(string topic)
+        {
+            int res = -1;
+            for(int i = 0;i<progress_list.Count;i++)
+                if (topic == progress_list[i].Topic)
+                    res = i;
+            return res;
+
+        }
+        public void PrintProgress()
+        {
+            Console.WriteLine($"{Words_Learnt} words learnt out of {Words_Total}");
         }
     }
     [Serializable]
@@ -124,6 +139,53 @@ namespace VoCards
             get { return inner_deck[i]; }
             set { inner_deck[i] = value; }
         }
+        public void GoThroughCards()
+        {
+
+            int cards_count,available_cards = Words_Total_Deck - Words_Learnt_Deck;
+            if (available_cards == 0)
+                Console.WriteLine("You have learned all cards. Good Job!!!!");
+            else
+            {
+                for (; ; )
+                {
+                    Console.WriteLine($"Input number of cards to go through(it should be between 1 and {available_cards}):");
+                    int.TryParse(Console.ReadLine(), out cards_count);
+                    if (cards_count > 0 && cards_count <= available_cards)
+                        break;
+                }
+                while (cards_count > 0)
+                {
+                    int i = 0;
+                    for (; i < Words_Total_Deck; i++)
+                    {
+                        if (!inner_deck[i].memorized)
+                        {
+                            Console.WriteLine("Card text: " + inner_deck[i].Front);
+                            string input;
+                            for (; ; )
+                            {
+                                Console.WriteLine("Type 'Remember' to mark card as memorized or 'Flip' to see the translation");
+                                input = Console.ReadLine();
+                                if (input == "Remember")
+                                {
+                                    Console.WriteLine("Card marked as memorized.");
+                                    inner_deck[i].memorized = true;
+                                    break;
+                                }
+                                if(input == "Flip")
+                                {
+                                    Console.WriteLine("Translation : " + inner_deck[i].Back);
+                                    break;
+                                }
+
+                            }
+                            cards_count--;
+                        }
+                    }
+                }
+            }
+        }
     }
     [Serializable]
     public class Card
@@ -141,6 +203,21 @@ namespace VoCards
 
     class Program
     {
+        public static void AddUserCard(Progress progress,int deck_index)
+        {
+            Console.WriteLine("Input card front text:");
+            string front = Console.ReadLine();
+            Console.WriteLine("Input card back text:");
+            progress[progress.NumberOfDecks].CreateAndAdd(front, Console.ReadLine());
+            Console.WriteLine("Deck created successfully");
+        }
+        public static void CreateUserDeck(Progress progress)
+        {
+            Console.WriteLine("Input deck topic:");
+            progress.AddDeck(Console.ReadLine());
+            Console.WriteLine("Add at least one card");
+            AddUserCard(progress, progress.NumberOfDecks-1);
+        }
         //methods to save progress in binary for easier access to private fields
         public static void WriteToBinaryFile<T>(string filePath, T objectToWrite, bool append = false)
         {
@@ -177,17 +254,59 @@ namespace VoCards
         static void Main(string[] args)
         {
             Progress progress = new Progress();
-            FillDecks(progress);
-            int index = -1;
-            Console.WriteLine("Welcome to my flashcard app!");
-            for(; ; )
+            if (File.Exists("save.bin"))
             {
-                Console.WriteLine("Existing decks by topic: ");
-                progress.PrintAllTopics();
-                Console.WriteLine("Choose one of existing decks by typing it's topic or type 'New' to create a new one");
-                string input = Console.ReadLine();
-                if (input == "New" || progress.HasTopic(input))
-                    break;
+                progress = ReadFromBinaryFile<Progress>("save.bin");
+                Console.WriteLine("Save loaded.");
+            }
+            else
+                FillDecks(progress);
+            int index = -1;
+            bool go = true;
+            string input = "";
+            Console.WriteLine("Welcome to my flashcard app!");
+            while(go)
+            {
+                for (; ; )
+                {
+                    Console.WriteLine("Existing decks by topic: ");
+                    progress.PrintAllTopics();
+                    Console.WriteLine("Choose one of existing decks by typing it's topic or type 'New' to create a new one, type 'Progress' to view statistics\n" +
+                        "(you can type 'Exit' now to save data and exit the app):");
+                    input = Console.ReadLine();
+                    if (input == "New" || input == "Progress"|| input == "Exit" || progress.HasTopic(input))
+                        break;
+                }
+                switch (input)
+                {
+                    case "Exit":
+                        WriteToBinaryFile<Progress>("save.bin", progress);
+                        go = false;
+                        break;
+                    case "New":
+                        CreateUserDeck(progress);
+                        break;
+                    case "Progress":
+                        progress.PrintProgress();
+                        break;
+                    default:
+                        index = progress.FindByTopic(input);
+                        for (; ; )
+                        {
+                            Console.WriteLine("Input 'Add' to add new card to the deck or 'Learn' to go through cards:");
+                            input = Console.ReadLine();
+                            if (input == "Add")
+                            {
+                                AddUserCard(progress, index);
+                                break;
+                            }
+                            else
+                            {
+                                progress[index].GoThroughCards();
+                            }
+                        }
+                        break;
+                }
             }
         }
     }
