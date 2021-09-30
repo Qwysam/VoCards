@@ -3,12 +3,17 @@ using System.Collections.Generic;
 using System.IO;
 namespace VoCards
 {
-    //top entity that stores all other classes
+    /*top entity that stores all other custom classes
+    only one object of this class should be used at a time unless
+    multiple user support is required*/
     [Serializable]
     class Progress
     {
+        //stores all decks of a user
         private List<Deck> progress_list;
+        //stores stats
         private int words_total, words_learnt;
+        //updates stats when invoked
         public int Words_Total {
             get { words_total = CountTotalWords(progress_list); return words_total; }
         }
@@ -55,12 +60,13 @@ namespace VoCards
             get { return progress_list[i]; }
             set { progress_list[i] = value; }
         }
-
+        //used to decrease amount of code in main
         public void PrintAllTopics()
         {
             foreach (Deck deck in progress_list)
                 Console.Write($"{deck.Topic} \n");
         }
+
         public bool HasTopic(string topic)
         {
             bool res = false;
@@ -79,16 +85,20 @@ namespace VoCards
             return res;
 
         }
+        //stats output
         public void PrintProgress()
         {
             Console.WriteLine($"{Words_Learnt} words learnt out of {Words_Total}");
         }
     }
+
     [Serializable]
     class Deck
     {
+        //stores cards in a deck
         private List<Card> inner_deck;
         public string Topic { get; set; }
+        //deck stats
         int words_learnt_deck, words_total_deck;
         public int Words_Total_Deck{ get { return words_total_deck; } }
         public int Words_Learnt_Deck { get { return words_learnt_deck; } }
@@ -122,6 +132,7 @@ namespace VoCards
             else
                 throw new ArgumentOutOfRangeException();
         }
+        //should be used insted of changing memorized variable in Card class directly
         public void CardMemorized(int index)
         {
             if (index < inner_deck.Count)
@@ -139,6 +150,7 @@ namespace VoCards
             get { return inner_deck[i]; }
             set { inner_deck[i] = value; }
         }
+        //used to reduce amount of code in main
         public void GoThroughCards()
         {
 
@@ -235,6 +247,8 @@ namespace VoCards
                 return (T)binaryFormatter.Deserialize(stream);
             }
         }
+        //creates three decks and fills them with cards if save is not detected
+        //save will be located in the same folder with .exe file
         public static void FillDecks(Progress progress)
         {
             progress.AddDeck("Animals");
