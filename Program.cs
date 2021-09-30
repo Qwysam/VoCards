@@ -173,7 +173,7 @@ namespace VoCards
                             }
                             if(input == "Flip")
                             {
-                                Console.WriteLine("Translation : " + inner_deck[i].Back);
+                                Console.WriteLine("\nTranslation : " + inner_deck[i].Back+"\n");
                                 break;
                             }
                         }
