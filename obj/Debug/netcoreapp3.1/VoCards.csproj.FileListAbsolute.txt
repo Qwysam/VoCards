@@ -10,3 +10,4 @@
 /Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.dll
 /Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.pdb
 /Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.genruntimeconfig.cache
+/Users/qwysam/Projects/VoCards/VoCards/obj/Debug/netcoreapp3.1/VoCards.csproj.AssemblyReference.cache
