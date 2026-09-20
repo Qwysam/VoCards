@@ -1,66 +1,55 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject LibraryStore Store
-@inject AppState State
 
-@if (State.Immersive)
-{
-    @* A study session owns the whole screen. *@
-    @Body
-}
-else
-{
-    <div class="shell">
-        <a class="skip-link" href="#main">Skip to content</a>
+@*
+    The standard shell. The study view opts out of it by declaring StudyLayout,
+    so nothing here needs to know a session is running.
+*@
 
-        <NavMenu />
+<div class="shell">
+    <a class="skip-link" href="#main">Skip to content</a>
 
-        <div class="main">
-            <TopBar />
+    <NavMenu />
 
-            <main id="main" class="page" tabindex="-1">
-                @if (!Store.IsReady)
+    <div class="main">
+        <TopBar />
+
+        <main id="main" class="page" tabindex="-1">
+            @if (!Store.IsReady)
+            {
+                <LoadingView />
+            }
+            else
+            {
+                @if (Store.LoadError is { } error)
                 {
-                    <LoadingView />
-                }
-                else
-                {
-                    @if (Store.LoadError is { } error)
-                    {
-                        <div class="card card-pad stack" style="border-color: var(--warning); margin-bottom: var(--space-6);">
-                            <div class="row">
-                                <Icon Name="alert" Size="20" />
-                                <strong>Your saved library could not be read</strong>
-                            </div>
-                            <p class="secondary" style="font-size: var(--text-sm);">
-                                @error We have started you on a fresh starter library. Your old data has
-                                <em>not</em> been deleted &mdash; it is still in this browser&rsquo;s storage,
-                                so exporting a backup before you make changes is worth doing.
-                            </p>
+                    <div class="card card-pad stack"
+                         style="border-color: var(--warning); margin-bottom: var(--space-6);">
+                        <div class="row">
+                            <Icon Name="alert" Size="20" />
+                            <strong>Your saved library could not be read</strong>
                         </div>
-                    }
-
-                    @Body
+                        <p class="secondary" style="font-size: var(--text-sm);">
+                            @error We have started you on a fresh starter library. Your old data has
+                            <em>not</em> been deleted &mdash; it is still in this browser&rsquo;s storage,
+                            so exporting a backup before you make changes is worth doing.
+                        </p>
+                    </div>
                 }
-            </main>
-        </div>
 
-        <TabBar />
+                @Body
+            }
+        </main>
     </div>
-}
+
+    <TabBar />
+</div>
 
 @code {
-    protected override void OnInitialized()
-    {
-        Store.Changed += Refresh;
-        State.Changed += Refresh;
-    }
+    protected override void OnInitialized() => Store.Changed += Refresh;
 
     private void Refresh() => InvokeAsync(StateHasChanged);
 
-    public void Dispose()
-    {
-        Store.Changed -= Refresh;
-        State.Changed -= Refresh;
-    }
+    public void Dispose() => Store.Changed -= Refresh;
 }

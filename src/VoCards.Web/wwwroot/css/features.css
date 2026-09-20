@@ -463,12 +463,18 @@
 
 /* ================================================================ heatmap */
 
+/* A year of cells is wider than a phone. width: max-content sizes the grid to
+   its content and max-width caps it at the container, so overflow-x: auto gives
+   it its own scrollbar instead of stretching the page. */
 .heatmap {
     display: grid;
     grid-auto-flow: column;
     grid-template-rows: repeat(7, 1fr);
     gap: 3px;
+    width: max-content;
+    max-width: 100%;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     padding-bottom: var(--space-2);
 }
 
@@ -493,6 +499,7 @@
 .heat-legend {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: var(--space-2);
     font-size: var(--text-2xs);
     color: var(--text-muted);
@@ -507,6 +514,7 @@
 
 .chart {
     width: 100%;
+    min-width: 0;
 }
 
 .chart svg {
@@ -597,10 +605,11 @@
     flex: 0 0 auto;
 }
 
-/* Every donut segment gets a 2px surface ring so adjacent fills never touch. */
+/* A donut segment IS its stroke, so this rule must not set stroke or
+   stroke-width - CSS beats SVG presentation attributes, and doing so repainted
+   every segment in the surface colour at 2px, making the chart invisible.
+   The 2px gap between segments comes from shortening each arc instead. */
 .donut-seg {
-    stroke: var(--surface-1);
-    stroke-width: 2;
     transition: opacity var(--dur-fast) var(--ease-out);
 }
 

@@ -145,6 +145,7 @@
 }
 
 .panel {
+    min-width: 0;
     background: var(--surface-1);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
@@ -166,6 +167,7 @@
 }
 
 .panel-body {
+    min-width: 0;
     padding: var(--space-5);
 }
 
@@ -588,6 +590,7 @@
 
 .tip::after {
     content: attr(data-tip);
+    max-width: min(16rem, 70vw);
     position: absolute;
     bottom: calc(100% + 8px);
     left: 50%;
@@ -597,6 +600,8 @@
     font-size: var(--text-2xs);
     font-weight: 600;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     color: var(--text-inverse);
     background: var(--text-primary);
     border-radius: var(--radius-xs);

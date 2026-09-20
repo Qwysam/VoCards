@@ -173,7 +173,6 @@ else
     protected override void OnInitialized()
     {
         Store.Changed += Reload;
-        State.SetImmersive(false);
         Reload();
     }
 

@@ -1,5 +1,6 @@
 @page "/study"
 @page "/study/{DeckId:guid}"
+@layout StudyLayout
 @implements IDisposable
 @inject LibraryStore Store
 @inject AppState State
@@ -13,7 +14,7 @@
 <div class="study-shell">
     @* ============================================================ top bar *@
     <header class="study-bar">
-        <button type="button" class="btn btn-ghost btn-icon" @onclick="Leave" aria-label="End the session">
+        <button type="button" class="btn btn-ghost btn-icon" @onclick="LeaveAsync" aria-label="End the session">
             <Icon Name="x" Size="18" />
         </button>
 
@@ -177,11 +178,20 @@
         _session?.Current is { } question
         && (question.Mode == StudyMode.Flip ? _flipped : _grade is not null);
 
-    protected override void OnInitialized()
+    protected override void OnInitialized() => Keys.Push(this, HandleKey);
+
+    /// <summary>
+    /// Runs work started by a global key press and then re-renders.
+    ///
+    /// Key presses arrive through a [JSInvokable] on App, which is outside this
+    /// component's event dispatch, so Blazor does not re-render it automatically
+    /// the way it would after an @@onclick.
+    /// </summary>
+    private void Run(Func<Task> work) => _ = InvokeAsync(async () =>
     {
-        Keys.Push(this, HandleKey);
-        State.SetImmersive(true);
-    }
+        await work();
+        StateHasChanged();
+    });
 
     protected override void OnParametersSet() => Begin();
 
@@ -408,19 +418,15 @@
         return Task.CompletedTask;
     }
 
-    private void GoHome()
-    {
-        State.SetImmersive(false);
-        Nav.NavigateTo(DeckId is { } id ? $"/decks/{id}" : "/");
-    }
+    private void GoHome() => Nav.NavigateTo(DeckId is { } id ? $"/decks/{id}" : "/");
 
-    private void Leave()
+    /// <summary>Ends the session early, still banking whatever was graded.</summary>
+    private async Task LeaveAsync()
     {
-        // Ending early still banks what was graded.
         if (_session is { IsFinished: false } session && session.Completed > 0)
         {
             session.Finish();
-            _ = FinishAsync();
+            await FinishAsync();
             return;
         }
 
@@ -482,7 +488,7 @@
 
         if (press.Is("Escape"))
         {
-            Leave();
+            Run(LeaveAsync);
             return true;
         }
 
@@ -504,13 +510,13 @@
 
             if (choosing && digit <= question.Choices.Count)
             {
-                _ = ChooseAsync(digit - 1);
+                Run(() => ChooseAsync(digit - 1));
                 return true;
             }
 
             if (!choosing && ShowRatingBar && digit <= 4)
             {
-                _ = GradeAsync((Rating)digit);
+                Run(() => GradeAsync((Rating)digit));
                 return true;
             }
 
@@ -523,40 +529,37 @@
             case "enter" when question.Mode == StudyMode.Flip:
                 if (_flipped)
                 {
-                    _ = GradeAsync(Rating.Good);
+                    Run(() => GradeAsync(Rating.Good));
                 }
                 else
                 {
-                    Flip();
-                    InvokeAsync(StateHasChanged);
+                    Run(() => { Flip(); return Task.CompletedTask; });
                 }
 
                 return true;
 
             case "enter" when _grade is not null:
-                _ = ContinueAsync();
+                Run(ContinueAsync);
                 return true;
 
             case "s":
-                _ = SpeakAsync();
+                Run(SpeakAsync);
                 return true;
 
             case "f":
-                ToggleStar();
-                InvokeAsync(StateHasChanged);
+                Run(() => { ToggleStar(); return Task.CompletedTask; });
                 return true;
 
             case "e":
-                _editing = question.Card;
-                InvokeAsync(StateHasChanged);
+                Run(() => { _editing = question.Card; return Task.CompletedTask; });
                 return true;
 
             case "u":
-                _ = SuspendAsync();
+                Run(SuspendAsync);
                 return true;
 
             case "arrowright":
-                _ = SkipAsync();
+                Run(SkipAsync);
                 return true;
 
             default:
@@ -564,9 +567,5 @@
         }
     }
 
-    public void Dispose()
-    {
-        Keys.Remove(this);
-        State.SetImmersive(false);
-    }
+    public void Dispose() => Keys.Remove(this);
 }

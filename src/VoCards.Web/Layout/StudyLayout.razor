@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+@*
+    The study view owns the whole screen: no sidebar, no top bar, no tab bar.
+
+    This is a layout rather than a flag on a shared service. An earlier version
+    had MainLayout hide its chrome when AppState.Immersive was set, but that
+    depends on the page's OnInitialized running before the layout's render —
+    a race the layout lost, so the shell stayed on screen behind the session.
+    Choosing the layout per page is decided at routing time and cannot race.
+*@
+
+@Body

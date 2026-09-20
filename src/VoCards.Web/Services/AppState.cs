@@ -19,9 +19,6 @@ public sealed class AppState(LibraryStore store, JsBridge js, NavigationManager 
 
     public bool ShortcutsOpen { get; private set; }
 
-    /// <summary>True while a study session owns the screen, which hides the shell chrome.</summary>
-    public bool Immersive { get; private set; }
-
     public bool SpeechAvailable { get; private set; }
 
     public IReadOnlyList<VoiceInfo> Voices { get; private set; } = [];
@@ -69,17 +66,6 @@ public sealed class AppState(LibraryStore store, JsBridge js, NavigationManager 
 
         PaletteOpen = false;
         ShortcutsOpen = false;
-        Changed?.Invoke();
-    }
-
-    public void SetImmersive(bool immersive)
-    {
-        if (Immersive == immersive)
-        {
-            return;
-        }
-
-        Immersive = immersive;
         Changed?.Invoke();
     }
 
