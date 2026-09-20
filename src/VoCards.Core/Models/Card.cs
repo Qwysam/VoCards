@@ -316,6 +316,26 @@ public sealed class Card
         return copy;
     }
 
+    /// <summary>
+    /// Restores the fields that are otherwise write-protected. Used only by the
+    /// deserializer, which is why it is internal rather than public.
+    /// </summary>
+    internal void RestoreContent(
+        string? example,
+        string? notes,
+        string? pronunciation,
+        bool starred,
+        DateTimeOffset modifiedAt,
+        IEnumerable<string> tags)
+    {
+        Example = example;
+        Notes = notes;
+        Pronunciation = pronunciation;
+        IsStarred = starred;
+        SetTags(tags);
+        ModifiedAt = modifiedAt;
+    }
+
     internal void Touch() => ModifiedAt = DateTimeOffset.Now;
 
     public override string ToString() => $"{Front} → {Back}";

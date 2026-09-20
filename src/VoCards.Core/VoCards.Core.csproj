@@ -5,4 +5,10 @@
     <Description>VoCards domain: decks, cards, spaced-repetition scheduling, stats and gamification. No UI, no I/O.</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The scheduling setters on Card are internal so that only CardReviewer writes
+         them. The test project needs the same reach to arrange states directly. -->
+    <InternalsVisibleTo Include="VoCards.Core.Tests" />
+  </ItemGroup>
+
 </Project>

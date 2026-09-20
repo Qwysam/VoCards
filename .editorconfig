@@ -74,3 +74,9 @@ dotnet_naming_style.pascal.capitalization = pascal_case
 # the idiomatic factory shape for a result type; the alternative is a separate
 # non-generic helper class that reads far worse at every call site.
 dotnet_diagnostic.CA1000.severity = none
+
+# --- test projects ---
+# Underscore_separated test names are the convention (Method_Scenario_Expectation),
+# so CA1707 does not apply there.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none

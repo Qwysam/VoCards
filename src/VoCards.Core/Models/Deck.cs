@@ -295,6 +295,9 @@ public sealed class Deck
         return copy;
     }
 
+    /// <summary>Restores the modified timestamp after a load, which Touch() would otherwise clobber.</summary>
+    internal void RestoreModifiedAt(DateTimeOffset modifiedAt) => ModifiedAt = modifiedAt;
+
     internal void Touch() => ModifiedAt = DateTimeOffset.Now;
 
     public override string ToString() => $"{Emoji} {Name} ({TotalCards} cards)";

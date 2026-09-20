@@ -80,8 +80,13 @@ public static class TextTools
     }
 
     /// <summary>
-    /// Levenshtein edit distance, used to tell a typo ("recieve") from a wrong
-    /// answer ("banana"). Uses two rolling rows rather than a full matrix.
+    /// Damerau–Levenshtein edit distance (optimal string alignment), used to tell a
+    /// typo ("recieve") from a wrong answer ("banana").
+    ///
+    /// Plain Levenshtein charges two edits for a transposition, which is the single
+    /// most common typing mistake — that would score "recieve" against "receive" at
+    /// 0.71 similarity and reject it. Counting an adjacent swap as one edit puts it
+    /// at 0.86, comfortably inside the default tolerance.
     /// </summary>
     public static int EditDistance(string a, string b)
     {
@@ -95,12 +100,8 @@ public static class TextTools
             return a.Length;
         }
 
-        // Keep the shorter string on the row axis to minimise allocation.
-        if (a.Length < b.Length)
-        {
-            (a, b) = (b, a);
-        }
-
+        // Three rolling rows: the transposition rule needs the row two back.
+        int[] twoBack = new int[b.Length + 1];
         int[] previous = new int[b.Length + 1];
         int[] current = new int[b.Length + 1];
 
@@ -116,12 +117,21 @@ public static class TextTools
             for (int j = 1; j <= b.Length; j++)
             {
                 int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                current[j] = Math.Min(
-                    Math.Min(current[j - 1] + 1, previous[j] + 1),
-                    previous[j] + cost);
+
+                int deletion = previous[j] + 1;
+                int insertion = current[j - 1] + 1;
+                int substitution = previous[j - 1] + cost;
+
+                current[j] = Math.Min(Math.Min(deletion, insertion), substitution);
+
+                // Adjacent transposition: "ab" typed where "ba" was expected.
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                {
+                    current[j] = Math.Min(current[j], twoBack[j - 2] + 1);
+                }
             }
 
-            (previous, current) = (current, previous);
+            (twoBack, previous, current) = (previous, current, twoBack);
         }
 
         return previous[b.Length];

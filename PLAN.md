@@ -73,48 +73,48 @@ project holds only presentation + storage interop.
 ## 2. Task list
 
 ### Phase 1 — Foundation
-- [ ] T1.1 Install .NET 10 SDK, verify Blazor WASM template builds
-- [ ] T1.2 Archive original app to `legacy/` with a README explaining its role
-- [ ] T1.3 Untrack `bin/`/`obj/`, write a comprehensive .NET `.gitignore` (P11)
-- [ ] T1.4 Create `VoCards.sln` + three projects, wire references
-- [ ] T1.5 `Directory.Build.props`: nullable enabled, implicit usings, warnings-as-errors, latest langver
-- [ ] T1.6 `.editorconfig` with C# style rules
+- [x] T1.1 Install .NET 10 SDK, verify Blazor WASM template builds
+- [x] T1.2 Archive original app to `legacy/` with a README explaining its role
+- [x] T1.3 Untrack `bin/`/`obj/`, write a comprehensive .NET `.gitignore` (P11)
+- [x] T1.4 Create `VoCards.sln` + three projects, wire references
+- [x] T1.5 `Directory.Build.props`: nullable enabled, implicit usings, warnings-as-errors, latest langver
+- [x] T1.6 `.editorconfig` with C# style rules
 
 ### Phase 2 — Domain (`VoCards.Core`)
-- [ ] T2.1 `Card` record: id, front, back, examples, notes, tags, starred, created/modified, `CardState`
-- [ ] T2.2 `Deck` record: id, name, description, emoji/icon, colour, language pair, cards, settings
-- [ ] T2.3 `Library` aggregate root replacing `Progress`, with dictionary-indexed lookup (P6)
-- [ ] T2.4 Computed stats — no stored counters (P5)
-- [ ] T2.5 `Review` record + `ReviewLog` history
-- [ ] T2.6 **SM-2 scheduler** — ease factor, interval, repetitions, graduation
-- [ ] T2.7 **FSRS-style scheduler** — stability/difficulty/retrievability, selectable per deck
-- [ ] T2.8 `IScheduler` abstraction so schedulers are swappable
-- [ ] T2.9 Leech detection (lapse threshold → tag + suspend)
-- [ ] T2.10 `StudySession` state machine (replaces nested `GoThroughCards`, P3)
-- [ ] T2.11 Study **direction**: front→back, back→front, mixed
-- [ ] T2.12 Study **modes**: Flip, MultipleChoice, Typing, Listening, Match, SpeedRound, Cram
-- [ ] T2.13 Answer grading: exact, case-insensitive, accent-insensitive, Levenshtein "close enough"
-- [ ] T2.14 `DueCardSelector` — new/learning/review mixing with daily caps
-- [ ] T2.15 Stats service: retention, forecast, heatmap buckets, per-deck mastery, streaks
-- [ ] T2.16 Gamification: XP curve, levels, daily goals, streak + streak-freeze
-- [ ] T2.17 Achievement engine + a catalogue of badges
-- [ ] T2.18 Search/filter: text, tag, state, starred, leech, difficulty
-- [ ] T2.19 Import/Export: JSON, CSV, TSV (Anki-style), with round-trip fidelity
-- [ ] T2.20 `System.Text.Json` source-generated context (kills `BinaryFormatter`, P2)
-- [ ] T2.21 Seed content — a real starter library, far beyond the original 9 words (P12)
-- [ ] T2.22 `Result<T>` / validation types so bad input never throws (P14)
+- [x] T2.1 `Card` record: id, front, back, examples, notes, tags, starred, created/modified, `CardState`
+- [x] T2.2 `Deck` record: id, name, description, emoji/icon, colour, language pair, cards, settings
+- [x] T2.3 `Library` aggregate root replacing `Progress`, with dictionary-indexed lookup (P6)
+- [x] T2.4 Computed stats — no stored counters (P5)
+- [x] T2.5 `Review` record + `ReviewLog` history
+- [x] T2.6 **SM-2 scheduler** — ease factor, interval, repetitions, graduation
+- [x] T2.7 **FSRS-style scheduler** — stability/difficulty/retrievability, selectable per deck
+- [x] T2.8 `IScheduler` abstraction so schedulers are swappable
+- [x] T2.9 Leech detection (lapse threshold → tag + suspend)
+- [x] T2.10 `StudySession` state machine (replaces nested `GoThroughCards`, P3)
+- [x] T2.11 Study **direction**: front→back, back→front, mixed
+- [x] T2.12 Study **modes**: Flip, MultipleChoice, Typing, Listening, Match, SpeedRound, Cram
+- [x] T2.13 Answer grading: exact, case-insensitive, accent-insensitive, Levenshtein "close enough"
+- [x] T2.14 `DueCardSelector` — new/learning/review mixing with daily caps
+- [x] T2.15 Stats service: retention, forecast, heatmap buckets, per-deck mastery, streaks
+- [x] T2.16 Gamification: XP curve, levels, daily goals, streak + streak-freeze
+- [x] T2.17 Achievement engine + a catalogue of badges
+- [x] T2.18 Search/filter: text, tag, state, starred, leech, difficulty
+- [x] T2.19 Import/Export: JSON, CSV, TSV (Anki-style), with round-trip fidelity
+- [x] T2.20 `System.Text.Json` source-generated context (kills `BinaryFormatter`, P2)
+- [x] T2.21 Seed content — a real starter library, far beyond the original 9 words (P12)
+- [x] T2.22 `Result<T>` / validation types so bad input never throws (P14)
 
 ### Phase 3 — Tests (`VoCards.Core.Tests`)
-- [ ] T3.1 Model + library invariants
-- [ ] T3.2 SM-2 scheduler behaviour incl. lapse/graduation edges
-- [ ] T3.3 FSRS scheduler behaviour
-- [ ] T3.4 `StudySession` transitions across all modes
-- [ ] T3.5 Answer-grading matrix (accents, case, typos)
-- [ ] T3.6 Stats/streak/XP calculations
-- [ ] T3.7 Achievement unlock conditions
-- [ ] T3.8 Import/export round-trips
-- [ ] T3.9 Search/filter matrix
-- [ ] T3.10 Regression tests for every original bug in the P-table
+- [x] T3.1 Model + library invariants
+- [x] T3.2 SM-2 scheduler behaviour incl. lapse/graduation edges
+- [x] T3.3 FSRS scheduler behaviour
+- [x] T3.4 `StudySession` transitions across all modes
+- [x] T3.5 Answer-grading matrix (accents, case, typos)
+- [x] T3.6 Stats/streak/XP calculations
+- [x] T3.7 Achievement unlock conditions
+- [x] T3.8 Import/export round-trips
+- [x] T3.9 Search/filter matrix
+- [x] T3.10 Regression tests for every original bug in the P-table
 
 ### Phase 4 — Design system (`VoCards.Web`)
 - [ ] T4.1 CSS custom-property token layer: colour, space, radius, shadow, motion, type scale
