@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>VoCards.Core</RootNamespace>
+    <Description>VoCards domain: decks, cards, spaced-repetition scheduling, stats and gamification. No UI, no I/O.</Description>
+  </PropertyGroup>
+
+</Project>
