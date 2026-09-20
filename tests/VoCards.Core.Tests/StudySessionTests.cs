@@ -402,3 +402,81 @@ public class StudySessionTests
         Assert.Equal(7, session.Total);
     }
 }
+
+public class PeekBatchTests
+{
+    [Fact]
+    public void PeekBatch_ReturnsUpcomingCards_InQueueOrder()
+    {
+        (Library library, Deck deck) = TestData.Library(cards: 8);
+        StudySession session = StudySession.Start(
+            library, deck, new StudyOptions { Seed = 4 }, TestData.Clock()).Value!;
+
+        IReadOnlyList<Card> batch = session.PeekBatch(4);
+
+        Assert.Equal(4, batch.Count);
+        Assert.Equal(session.Current!.Card.Id, batch[0].Id);
+        Assert.Equal(batch.Count, batch.Select(c => c.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public void PeekBatch_DoesNotAdvanceTheSession()
+    {
+        (Library library, Deck deck) = TestData.Library(cards: 6);
+        StudySession session = StudySession.Start(
+            library, deck, new StudyOptions { Seed = 4 }, TestData.Clock()).Value!;
+
+        Guid before = session.Current!.Card.Id;
+        session.PeekBatch(5);
+
+        Assert.Equal(before, session.Current!.Card.Id);
+        Assert.Equal(0, session.Completed);
+    }
+
+    [Fact]
+    public void PeekBatch_ClampsToWhatIsLeft()
+    {
+        (Library library, Deck deck) = TestData.Library(cards: 3);
+        StudySession session = StudySession.Start(
+            library, deck, new StudyOptions { Seed = 4 }, TestData.Clock()).Value!;
+
+        Assert.Equal(3, session.PeekBatch(50).Count);
+        Assert.Empty(session.PeekBatch(0));
+        Assert.Empty(session.PeekBatch(-1));
+    }
+
+    [Fact]
+    public void GradingInBatchOrder_ConsumesExactlyThoseCards()
+    {
+        (Library library, Deck deck) = TestData.Library(cards: 10);
+        StudySession session = StudySession.Start(
+            library, deck, new StudyOptions { Seed = 4 }, TestData.Clock()).Value!;
+
+        IReadOnlyList<Card> batch = session.PeekBatch(4);
+        var expected = batch.Select(c => c.Id).ToArray();
+        var graded = new List<Guid>();
+
+        foreach (Card _ in batch)
+        {
+            graded.Add(session.Current!.Card.Id);
+            session.Grade(Rating.Good);
+        }
+
+        Assert.Equal(expected, graded);
+        Assert.Equal(4, session.Completed);
+    }
+
+    [Fact]
+    public void PeekBatch_OnAFinishedSession_IsEmpty()
+    {
+        (Library library, Deck deck) = TestData.Library(cards: 2);
+        StudySession session = StudySession.Start(
+            library, deck, new StudyOptions { Seed = 4 }, TestData.Clock()).Value!;
+
+        session.Grade(Rating.Good);
+        session.Grade(Rating.Good);
+
+        Assert.True(session.IsFinished);
+        Assert.Empty(session.PeekBatch(3));
+    }
+}

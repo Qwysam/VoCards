@@ -23,7 +23,8 @@ else
                 <Icon Name="layers" Size="16" />
                 Decks
             </a>
-            <button type="button" class="btn btn-primary" @onclick="StudyAll" disabled="@(_stats.DueNow == 0)">
+            <button type="button" class="btn btn-primary" @onclick="() => _launching = true"
+                    disabled="@(_stats.DueNow == 0)">
                 <Icon Name="play" Size="16" />
                 Study now
             </button>
@@ -163,7 +164,14 @@ else
     }
 }
 
+@if (_launching)
+{
+    <StudyLauncher DeckName="everything" DueCount="_stats.DueNow" Tags="Store.Library.AllTags"
+                   OnStart="Go" OnCancel="() => _launching = false" />
+}
+
 @code {
+    private bool _launching;
     private LibraryStats _stats = Empty();
     private IReadOnlyList<Deck> _withWork = [];
     private IReadOnlyList<DailyActivity> _activity = [];
@@ -194,7 +202,11 @@ else
         InvokeAsync(StateHasChanged);
     }
 
-    private void StudyAll() => Nav.NavigateTo("/study");
+    private void Go(string url)
+    {
+        _launching = false;
+        Nav.NavigateTo(url);
+    }
 
     // Written with >= rather than < because Razor parses a leading "<" inside a
     // switch expression as the start of a markup tag.

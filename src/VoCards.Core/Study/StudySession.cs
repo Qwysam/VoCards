@@ -139,6 +139,25 @@ public sealed class StudySession
     /// <summary>XP banked so far this session.</summary>
     public long XpEarned { get; private set; }
 
+    /// <summary>
+    /// The next <paramref name="count"/> cards in queue order, starting with the one
+    /// on screen, without advancing anything.
+    ///
+    /// Match mode needs a whole batch on screen at once. Returning them in queue
+    /// order means the caller can grade them back with plain <see cref="Grade"/>
+    /// calls in the same order, so the batch view needs no special grading path.
+    /// </summary>
+    public IReadOnlyList<Card> PeekBatch(int count)
+    {
+        if (count <= 0 || _index >= _queue.Count)
+        {
+            return [];
+        }
+
+        int take = Math.Min(count, _queue.Count - _index);
+        return _queue.GetRange(_index, take);
+    }
+
     // ---------------------------------------------------------------- actions
 
     /// <summary>Shows the answer. In flip mode this is what the learner does before grading.</summary>

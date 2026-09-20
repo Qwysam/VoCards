@@ -117,47 +117,47 @@ project holds only presentation + storage interop.
 - [x] T3.10 Regression tests for every original bug in the P-table
 
 ### Phase 4 — Design system (`VoCards.Web`)
-- [ ] T4.1 CSS custom-property token layer: colour, space, radius, shadow, motion, type scale
-- [ ] T4.2 Light + dark themes, `prefers-color-scheme` aware, manual override
-- [ ] T4.3 Multiple accent palettes the user can pick
-- [ ] T4.4 Typography, fluid type scale, icon set (inline SVG — no icon-font dependency)
-- [ ] T4.5 Core primitives: Button, Card, Badge, Input, Select, Toggle, Modal, Tooltip, Toast, Tabs, Progress, Skeleton
-- [ ] T4.6 Motion system: flip, slide, stagger, spring — all gated on `prefers-reduced-motion`
-- [ ] T4.7 Responsive shell: sidebar → bottom nav on mobile
-- [ ] T4.8 Accessibility pass: focus rings, ARIA, contrast, full keyboard reachability
+- [x] T4.1 CSS custom-property token layer: colour, space, radius, shadow, motion, type scale
+- [x] T4.2 Light + dark themes, `prefers-color-scheme` aware, manual override
+- [x] T4.3 Multiple accent palettes the user can pick
+- [x] T4.4 Typography, fluid type scale, icon set (inline SVG — no icon-font dependency)
+- [x] T4.5 Core primitives: Button, Card, Badge, Input, Select, Toggle, Modal, Tooltip, Toast, Tabs, Progress, Skeleton
+- [x] T4.6 Motion system: flip, slide, stagger, spring — all gated on `prefers-reduced-motion`
+- [x] T4.7 Responsive shell: sidebar → bottom nav on mobile
+- [x] T4.8 Accessibility pass: focus rings, ARIA, contrast, full keyboard reachability
 
 ### Phase 5 — App features (`VoCards.Web`)
-- [ ] T5.1 App shell, routing, nav, theme switcher
-- [ ] T5.2 **Dashboard**: due-today, streak ring, XP/level, quick actions, activity heatmap
-- [ ] T5.3 **Decks** grid: create, edit, duplicate, delete, colour/emoji picker, search
-- [ ] T5.4 **Deck detail**: card table, bulk select, inline edit, per-deck settings
-- [ ] T5.5 **Study view**: 3D flip card, rating bar, progress, keyboard-first
-- [ ] T5.6 Study mode — Multiple choice
-- [ ] T5.7 Study mode — Typing with diff-highlighted feedback
-- [ ] T5.8 Study mode — Listening (TTS prompt)
-- [ ] T5.9 Study mode — Match/pairs mini-game
-- [ ] T5.10 Study mode — Speed round with timer
-- [ ] T5.11 Session summary screen with per-card recap
-- [ ] T5.12 **Text-to-speech** pronunciation + voice/locale picker
-- [ ] T5.13 **Browse**: global search, filters, sort, bulk actions
-- [ ] T5.14 **Stats page**: charts (retention, forecast, reviews/day), heatmap, per-deck mastery
-- [ ] T5.15 **Achievements page** with locked/unlocked states
-- [ ] T5.16 **Settings**: theme, accent, daily goal, scheduler, TTS, motion, data controls
-- [ ] T5.17 **Import/Export** UI with file pick + download
-- [ ] T5.18 **Command palette** (Ctrl/Cmd-K) over decks, cards, actions, navigation
-- [ ] T5.19 Global keyboard shortcuts + a shortcuts cheat-sheet overlay
-- [ ] T5.20 Toast notifications + undo for destructive actions
-- [ ] T5.21 Onboarding / first-run experience
-- [ ] T5.22 IndexedDB persistence via JS interop, with autosave + migration versioning
-- [ ] T5.23 PWA: manifest, service worker, offline, installable
-- [ ] T5.24 Empty states, loading skeletons, error boundary
+- [x] T5.1 App shell, routing, nav, theme switcher
+- [x] T5.2 **Dashboard**: due-today, streak ring, XP/level, quick actions, activity heatmap
+- [x] T5.3 **Decks** grid: create, edit, duplicate, delete, colour/emoji picker, search
+- [x] T5.4 **Deck detail**: card table, bulk select, inline edit, per-deck settings
+- [x] T5.5 **Study view**: 3D flip card, rating bar, progress, keyboard-first
+- [x] T5.6 Study mode — Multiple choice
+- [x] T5.7 Study mode — Typing with diff-highlighted feedback
+- [x] T5.8 Study mode — Listening (TTS prompt)
+- [x] T5.9 Study mode — Match/pairs mini-game
+- [x] T5.10 Study mode — Speed round with timer
+- [x] T5.11 Session summary screen with per-card recap
+- [x] T5.12 **Text-to-speech** pronunciation + voice/locale picker
+- [x] T5.13 **Browse**: global search, filters, sort, bulk actions
+- [x] T5.14 **Stats page**: charts (retention, forecast, reviews/day), heatmap, per-deck mastery
+- [x] T5.15 **Achievements page** with locked/unlocked states
+- [x] T5.16 **Settings**: theme, accent, daily goal, scheduler, TTS, motion, data controls
+- [x] T5.17 **Import/Export** UI with file pick + download
+- [x] T5.18 **Command palette** (Ctrl/Cmd-K) over decks, cards, actions, navigation
+- [x] T5.19 Global keyboard shortcuts + a shortcuts cheat-sheet overlay
+- [x] T5.20 Toast notifications + undo for destructive actions
+- [x] T5.21 Onboarding / first-run experience
+- [x] T5.22 IndexedDB persistence via JS interop, with autosave + migration versioning
+- [x] T5.23 PWA: manifest, service worker, offline, installable
+- [x] T5.24 Empty states, loading skeletons, error boundary
 
 ### Phase 6 — Repo health
-- [ ] T6.1 GitHub Actions CI: restore → build → test → publish artifact
-- [ ] T6.2 GitHub Pages deployment workflow for the WASM app
-- [ ] T6.3 Rewrite `README.md`: screenshots, features, architecture, quick start
-- [ ] T6.4 `docs/ARCHITECTURE.md`, `docs/DESIGN.md`
-- [ ] T6.5 Final: full build + full test run green, plan file ticked off
+- [x] T6.1 GitHub Actions CI: restore → build → test → publish artifact
+- [x] T6.2 GitHub Pages deployment workflow for the WASM app
+- [x] T6.3 Rewrite `README.md`: screenshots, features, architecture, quick start
+- [x] T6.4 `docs/ARCHITECTURE.md`, `docs/DESIGN.md`
+- [x] T6.5 Final: full build + full test run green, plan file ticked off
 
 ---
 
@@ -166,3 +166,42 @@ project holds only presentation + storage interop.
 - No backend/server — the app stays local-first, 100% client-side.
 - No account system or cloud sync.
 - No external UI component library; the design system is hand-built.
+
+---
+
+## 4. Outcome
+
+All six phases are complete. Final state:
+
+| | |
+| --- | --- |
+| Target framework | .NET 10 (LTS) — .NET 9 reached end of life before this work started |
+| Tests | 225, all passing, running in under half a second |
+| Build | Clean with nullable enabled and warnings as errors |
+| Decks shipped | 9, across 6 languages, including the original three |
+| Cards shipped | 187, including all nine original words |
+| Study modes | 6, all reachable from the study launcher |
+| Schedulers | 2 (SM-2, FSRS 4.5), selectable per deck |
+| Achievements | 30, across 6 categories |
+| Pages | 8 |
+
+### Bugs the work surfaced
+
+Writing the tests found two real defects in code that compiled cleanly:
+
+1. `TextTools.EditDistance` used `previous[j]` instead of `previous[j - 1]` for the
+   substitution term, so it returned nonsense for any non-trivial pair.
+2. Plain Levenshtein scores a transposition as two edits, which put "recieve"
+   against "receive" at 0.71 similarity and rejected the single most common kind of
+   typo. Replaced with Damerau–Levenshtein.
+
+Driving the app in a real browser found four more that type-checked and rendered:
+
+3. The study view kept the app shell behind it — a render-order race on a shared
+   flag, fixed with a dedicated layout.
+4. Ending a session with Escape built the recap and discarded it, because keyboard
+   events arrive outside the component's event dispatch and nothing re-rendered it.
+5. The lifecycle donut was invisible: its own CSS set `stroke` and `stroke-width`,
+   and CSS beats SVG presentation attributes.
+6. Deep-linking to `/study` reported "no decks to study", because the new study
+   layout did not hold the page back until the library had loaded from IndexedDB.

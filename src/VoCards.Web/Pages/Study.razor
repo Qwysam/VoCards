@@ -90,6 +90,16 @@
                                 OnSubmit="SubmitTypedAsync" OnContinue="ContinueAsync" />
                     break;
 
+                case StudyMode.Listening:
+                    <ListeningView Question="question" Revealed="_flipped" OnReveal="Flip" />
+                    break;
+
+                case StudyMode.Match:
+                    <MatchView Cards="_batch" Direction="question.Direction"
+                               Seed="@(_batch.Count > 0 ? _batch[0].GetHashCode() : 0)"
+                               OnComplete="CompleteMatchAsync" />
+                    break;
+
                 default:
                     <FlashCard Question="question" Flipped="_flipped" OnFlipRequested="Flip" />
                     break;
@@ -167,6 +177,7 @@
     private string _deckName = "Everything";
 
     private bool _flipped;
+    private IReadOnlyList<Card> _batch = [];
     private string _typed = string.Empty;
     private GradedAnswer? _grade;
     private IReadOnlyDictionary<Rating, string>? _previews;
@@ -174,9 +185,14 @@
     private Card? _editing;
 
     /// <summary>The rating bar appears once the answer is on screen.</summary>
-    private bool ShowRatingBar =>
-        _session?.Current is { } question
-        && (question.Mode == StudyMode.Flip ? _flipped : _grade is not null);
+    private bool ShowRatingBar => _session?.Current switch
+    {
+        // Match grades a whole batch at once, so it never shows the rating bar.
+        { Mode: StudyMode.Match } => false,
+        { Mode: StudyMode.Flip or StudyMode.Listening } => _flipped,
+        { } => _grade is not null,
+        _ => false,
+    };
 
     protected override void OnInitialized() => Keys.Push(this, HandleKey);
 
@@ -251,6 +267,50 @@
         _error = null;
         _session = result.Value;
         RefreshPreviews();
+        RefreshBatch();
+    }
+
+    /// <summary>Match mode works on a batch; every other mode ignores this.</summary>
+    private void RefreshBatch() =>
+        _batch = _options.Mode == StudyMode.Match && _session is { } session
+            ? session.PeekBatch(MatchBatchSize)
+            : [];
+
+    private const int MatchBatchSize = 5;
+
+    /// <summary>
+    /// Grades a finished match round. The batch came back in queue order, so the
+    /// ratings can be applied with ordinary sequential Grade calls.
+    /// </summary>
+    private async Task CompleteMatchAsync(IReadOnlyDictionary<Guid, Rating> results)
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        foreach (Card card in _batch)
+        {
+            if (session.Current is null)
+            {
+                break;
+            }
+
+            Rating rating = results.GetValueOrDefault(card.Id, Rating.Again);
+            session.Grade(rating, rating == Rating.Again ? AnswerVerdict.Incorrect : AnswerVerdict.Correct);
+        }
+
+        await State.BlipAsync("correct");
+        Store.MarkChanged();
+
+        if (session.IsFinished)
+        {
+            await FinishAsync();
+            return;
+        }
+
+        RefreshPreviews();
+        RefreshBatch();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -288,9 +348,10 @@
 
     // ------------------------------------------------------------- actions
 
+    /// <summary>Reveals the answer in the two modes that hide it behind a flip.</summary>
     private void Flip()
     {
-        if (_session?.Current?.Mode != StudyMode.Flip)
+        if (_session?.Current?.Mode is not (StudyMode.Flip or StudyMode.Listening))
         {
             return;
         }
@@ -324,6 +385,7 @@
         }
 
         RefreshPreviews();
+        RefreshBatch();
         Store.MarkChanged();
         await FocusTypingAsync();
     }
@@ -375,6 +437,7 @@
         }
 
         RefreshPreviews();
+        RefreshBatch();
         await FocusTypingAsync();
     }
 
@@ -525,8 +588,8 @@
 
         switch (press.Lower)
         {
-            case " " when question.Mode == StudyMode.Flip:
-            case "enter" when question.Mode == StudyMode.Flip:
+            case " " when question.Mode is StudyMode.Flip or StudyMode.Listening:
+            case "enter" when question.Mode is StudyMode.Flip or StudyMode.Listening:
                 if (_flipped)
                 {
                     Run(() => GradeAsync(Rating.Good));

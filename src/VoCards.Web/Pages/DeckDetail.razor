@@ -50,7 +50,7 @@ else
                 <Icon Name="plus" Size="16" />
                 Card
             </button>
-            <button type="button" class="btn btn-primary" @onclick="StartStudy">
+            <button type="button" class="btn btn-primary" @onclick="() => _launching = true">
                 <Icon Name="play" Size="16" />
                 Study
             </button>
@@ -241,6 +241,17 @@ else
 }
 
 @* ------------------------------------------------------------- dialogs -- *@
+@if (_launching && _deck is not null)
+{
+    <StudyLauncher DeckName="@_deck.Name" DeckId="_deck.Id" DueCount="_deck.DueCount(Store.Now)"
+                   Tags="_deck.Tags"
+                   FrontLanguageLabel="@LanguageLabel(_deck.FrontLanguage)"
+                   BackLanguageLabel="@LanguageLabel(_deck.BackLanguage)"
+                   InitialMode="_deck.Settings.DefaultMode"
+                   InitialDirection="_deck.Settings.Direction"
+                   OnStart="Go" OnCancel="() => _launching = false" />
+}
+
 @if (_addingCard)
 {
     <CardEditor OnSave="AddCardAsync" OnCancel="() => _addingCard = false" />
@@ -296,6 +307,7 @@ else
     private Card? _editingCard;
     private bool _editingDeck;
     private bool _menuOpen;
+    private bool _launching;
     private bool _confirmDelete;
     private bool _confirmReset;
 
@@ -641,7 +653,24 @@ else
         return new string(cleaned).Trim('-') is { Length: > 0 } slug ? slug : "deck";
     }
 
-    private void StartStudy() => Nav.NavigateTo($"/study/{DeckId}");
+    private void Go(string url)
+    {
+        _launching = false;
+        Nav.NavigateTo(url);
+    }
+
+    /// <summary>Turns a BCP-47 tag into something readable for the direction picker.</summary>
+    private static string LanguageLabel(string tag)
+    {
+        try
+        {
+            return new CultureInfo(tag).NativeName.Split(' ')[0];
+        }
+        catch (CultureNotFoundException)
+        {
+            return tag;
+        }
+    }
 
     private void StartCram() => Nav.NavigateTo($"/study/{DeckId}?cram=1");
 
