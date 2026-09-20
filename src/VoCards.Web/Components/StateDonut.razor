@@ -1,0 +1,129 @@
+@*
+    How the library splits across the learning lifecycle.
+
+    New -> Learning -> Young -> Mature is an ordered progression, so this uses an
+    ordinal single-hue ramp rather than categorical hues: each step sits further
+    from the surface than the last, in both themes. Suspended is outside the
+    progression and takes a neutral grey.
+
+    Every segment carries a 2px surface ring, and each is direct-labelled in the
+    legend beside it, so identity never rests on colour alone.
+*@
+
+<div class="donut-wrap">
+    <div class="donut-holder" style="width: @(Size)px; height: @(Size)px;">
+        <svg width="@Size" height="@Size" viewBox="0 0 @Size @Size" role="img" aria-label="@AriaLabel"
+             style="transform: rotate(-90deg);">
+            @if (Total == 0)
+            {
+                <circle cx="@Half" cy="@Half" r="@Radius" fill="none"
+                        stroke="var(--surface-3)" stroke-width="@Thickness" />
+            }
+            else
+            {
+                @foreach (Slice slice in Slices)
+                {
+                    <circle class="donut-seg" cx="@Half" cy="@Half" r="@Radius" fill="none"
+                            stroke="@slice.Color" stroke-width="@Thickness"
+                            stroke-dasharray="@Format.Number(slice.Length) @Format.Number(Circumference)"
+                            stroke-dashoffset="@Format.Number(-slice.Offset)">
+                        <title>@slice.Label: @slice.Count cards (@Format.PercentLabel(slice.Fraction))</title>
+                    </circle>
+                }
+            }
+        </svg>
+
+        <div class="donut-center">
+            <strong style="font-family: var(--font-display); font-size: var(--text-xl);">@Format.Count(Total)</strong>
+            <small class="muted" style="font-size: var(--text-2xs);">cards</small>
+        </div>
+    </div>
+
+    <div class="stack" style="gap: var(--space-2); flex: 1; min-width: 9rem;">
+        @foreach (Slice slice in Slices)
+        {
+            <div class="row" style="gap: var(--space-2); font-size: var(--text-sm);">
+                <span class="legend-swatch" style="background: @slice.Color; border-radius: 3px;"></span>
+                <span style="flex: 1;">@slice.Label</span>
+                <span class="tnum" style="font-weight: 650;">@slice.Count</span>
+                <span class="muted tnum" style="min-width: 3rem; text-align: right;">
+                    @Format.PercentLabel(slice.Fraction)
+                </span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StateBreakdown Breakdown { get; set; } = new();
+
+    [Parameter] public int Size { get; set; } = 168;
+
+    [Parameter] public int Thickness { get; set; } = 22;
+
+    private double Half => Size / 2d;
+
+    private double Radius => (Size - Thickness) / 2d;
+
+    private double Circumference => 2 * Math.PI * Radius;
+
+    private int Total => Breakdown.Total;
+
+    private sealed record Slice(string Label, int Count, string Color, double Fraction, double Length, double Offset);
+
+    /// <summary>
+    /// Builds the arcs, skipping empty categories so no zero-width segment is drawn.
+    /// A 2px gap is subtracted from each arc so adjacent fills never touch.
+    /// </summary>
+    private IEnumerable<Slice> Slices
+    {
+        get
+        {
+            (string Label, int Count, string Color)[] categories =
+            [
+                ("New", Breakdown.New, "var(--ramp-1)"),
+                ("Learning", Breakdown.Learning, "var(--ramp-2)"),
+                ("Young", Breakdown.Young, "var(--ramp-3)"),
+                ("Mature", Breakdown.Mature, "var(--ramp-4)"),
+                ("Suspended", Breakdown.Suspended, "var(--ramp-off)"),
+            ];
+
+            if (Total == 0)
+            {
+                yield break;
+            }
+
+            double offset = 0;
+
+            foreach ((string label, int count, string color) in categories)
+            {
+                if (count == 0)
+                {
+                    continue;
+                }
+
+                double fraction = (double)count / Total;
+                double length = Math.Max(0, (fraction * Circumference) - 2);
+
+                yield return new Slice(label, count, color, fraction, length, offset);
+
+                offset += fraction * Circumference;
+            }
+        }
+    }
+
+    private string AriaLabel
+    {
+        get
+        {
+            if (Total == 0)
+            {
+                return "Card breakdown: no cards yet.";
+            }
+
+            return "Card breakdown: "
+                + string.Join(", ", Slices.Select(s => $"{s.Count} {s.Label.ToLowerInvariant()}"))
+                + $", of {Total} total.";
+        }
+    }
+}

@@ -1,0 +1,222 @@
+@*
+    Ctrl/Cmd-K palette: navigation, deck jumps, card search and actions in one
+    box. Results are grouped and driven entirely from the keyboard.
+*@
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject KeyboardService Keys
+@inject JsBridge Js
+@inject ToastService Toasts
+
+<div class="palette-scrim" @onclick="State.ClosePalette">
+    <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette"
+         @onclick:stopPropagation="true">
+        <input id="palette-input" class="palette-input" type="text" autocomplete="off"
+               spellcheck="false" placeholder="Search decks, cards and actions…"
+               value="@_query" @oninput="OnInput" @onkeydown="OnKeyDown" />
+
+        <div class="palette-list">
+            @if (_results.Count == 0)
+            {
+                <p class="muted" style="padding: var(--space-6); text-align: center; font-size: var(--text-sm);">
+                    Nothing matches &ldquo;@_query&rdquo;.
+                </p>
+            }
+            else
+            {
+                @foreach (IGrouping<string, PaletteEntry> group in _results.GroupBy(r => r.Group))
+                {
+                    <p class="eyebrow palette-group">@group.Key</p>
+
+                    @foreach (PaletteEntry entry in group)
+                    {
+                        int index = _results.IndexOf(entry);
+
+                        <button type="button" class="palette-item"
+                                data-active="@((index == _selected).ToString().ToLowerInvariant())"
+                                @onclick="() => RunAsync(entry)"
+                                @onmouseover="() => _selected = index">
+                            <Icon Name="@entry.Icon" Size="16" />
+                            <span class="truncate" style="flex: 1;">@entry.Label</span>
+                            @if (entry.Hint is { Length: > 0 } hint)
+                            {
+                                <span class="muted" style="font-size: var(--text-xs);">@hint</span>
+                            }
+                        </button>
+                    }
+                }
+            }
+        </div>
+
+        <div class="palette-foot">
+            <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+            <span><kbd>↵</kbd> open</span>
+            <span><kbd>Esc</kbd> close</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _query = string.Empty;
+    private int _selected;
+    private List<PaletteEntry> _results = [];
+
+    /// <summary>One row in the palette.</summary>
+    private sealed record PaletteEntry(string Group, string Icon, string Label, string? Hint, Func<Task> Run);
+
+    protected override void OnInitialized()
+    {
+        Keys.Push(this, HandleKey);
+        Rebuild();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Js.FocusAsync("#palette-input");
+        }
+    }
+
+    private bool HandleKey(KeyPress press)
+    {
+        if (!press.Is("Escape"))
+        {
+            return false;
+        }
+
+        State.ClosePalette();
+        return true;
+    }
+
+    private void OnInput(ChangeEventArgs args)
+    {
+        _query = args.Value?.ToString() ?? string.Empty;
+        _selected = 0;
+        Rebuild();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        switch (args.Key)
+        {
+            case "ArrowDown":
+                _selected = _results.Count == 0 ? 0 : (_selected + 1) % _results.Count;
+                break;
+
+            case "ArrowUp":
+                _selected = _results.Count == 0 ? 0 : (_selected - 1 + _results.Count) % _results.Count;
+                break;
+
+            case "Enter" when _selected >= 0 && _selected < _results.Count:
+                await RunAsync(_results[_selected]);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    private async Task RunAsync(PaletteEntry entry)
+    {
+        State.ClosePalette();
+        await entry.Run();
+    }
+
+    /// <summary>
+    /// Rebuilds the result list. With an empty box it shows the default actions;
+    /// with a query it ranks decks, then cards, then matching actions.
+    /// </summary>
+    private void Rebuild()
+    {
+        var results = new List<PaletteEntry>();
+        string query = _query.Trim();
+
+        // --- decks ---
+        IEnumerable<Deck> decks = Store.Library.Decks;
+
+        if (query.Length > 0)
+        {
+            decks = decks.Where(d => TextTools.ContainsLoose(d.Name, query));
+        }
+
+        foreach (Deck deck in decks.Take(6))
+        {
+            Guid id = deck.Id;
+            int due = deck.DueCount(Store.Now);
+
+            results.Add(new PaletteEntry(
+                "Decks",
+                "layers",
+                $"{deck.Emoji}  {deck.Name}",
+                due > 0 ? $"{due} due" : $"{deck.TotalCards} cards",
+                () => { State.Go($"/decks/{id}"); return Task.CompletedTask; }));
+        }
+
+        // --- cards ---
+        if (query.Length >= 2)
+        {
+            foreach (CardHit hit in CardSearch.Suggest(Store.Library, query, take: 6))
+            {
+                Guid deckId = hit.Deck.Id;
+                Guid cardId = hit.Card.Id;
+
+                results.Add(new PaletteEntry(
+                    "Cards",
+                    "cards",
+                    $"{hit.Card.Front} → {TextTools.Ellipsize(hit.Card.Back, 32)}",
+                    hit.Deck.Name,
+                    () => { State.Go($"/decks/{deckId}?card={cardId}"); return Task.CompletedTask; }));
+            }
+        }
+
+        // --- actions ---
+        foreach (PaletteEntry action in Actions())
+        {
+            if (query.Length == 0 || TextTools.ContainsLoose(action.Label, query))
+            {
+                results.Add(action);
+            }
+        }
+
+        _results = results;
+        _selected = Math.Clamp(_selected, 0, Math.Max(0, _results.Count - 1));
+    }
+
+    private IEnumerable<PaletteEntry> Actions()
+    {
+        yield return Nav("Study everything that is due", "study", "/study");
+        yield return Nav("Go to the dashboard", "home", "/");
+        yield return Nav("Browse all cards", "search", "/browse");
+        yield return Nav("View statistics", "chart", "/stats");
+        yield return Nav("View achievements", "trophy", "/achievements");
+        yield return Nav("Open settings", "settings", "/settings");
+        yield return Nav("Create a new deck", "plus", "/decks?new=1");
+
+        yield return new PaletteEntry("Actions", "moon", "Toggle dark mode", null, async () =>
+        {
+            Store.Profile.Theme = Store.Profile.Theme == "dark" ? "light" : "dark";
+            await State.ApplyThemeAsync();
+            Store.MarkChanged();
+        });
+
+        yield return new PaletteEntry("Actions", "keyboard", "Show keyboard shortcuts", null, () =>
+        {
+            State.ToggleShortcuts();
+            return Task.CompletedTask;
+        });
+
+        yield return new PaletteEntry("Actions", "download", "Export a backup", null, async () =>
+        {
+            string json = VoCardsJson.Serialize(Store.Library, pretty: true);
+            await Js.DownloadAsync($"vocards-{DateTime.Now:yyyy-MM-dd}.json", json, "application/json");
+            Toasts.Success("Backup downloaded.");
+        });
+
+        PaletteEntry Nav(string label, string icon, string href) =>
+            new("Actions", icon, label, null, () => { State.Go(href); return Task.CompletedTask; });
+    }
+
+    public void Dispose() => Keys.Remove(this);
+}

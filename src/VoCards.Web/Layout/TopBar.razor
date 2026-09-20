@@ -1,0 +1,86 @@
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject JsBridge Js
+
+<header class="topbar">
+    <a class="brand" href="">
+        <span class="brand-mark"><Icon Name="cards" Size="18" /></span>
+        <span class="brand-name">Vo<span>Cards</span></span>
+    </a>
+
+    <span class="spacer"></span>
+
+    <button type="button" class="btn btn-outline btn-sm" @onclick="State.OpenPalette"
+            aria-label="Open the command palette">
+        <Icon Name="search" Size="15" />
+        <span class="palette-hint">Search</span>
+        <kbd>@(_mac ? "⌘" : "Ctrl")K</kbd>
+    </button>
+
+    <button type="button" class="btn btn-ghost btn-icon btn-sm tip" data-tip="@ThemeTip"
+            @onclick="CycleThemeAsync" aria-label="@ThemeTip">
+        <Icon Name="@ThemeIcon" Size="17" />
+    </button>
+
+    <button type="button" class="btn btn-ghost btn-icon btn-sm tip" data-tip="Keyboard shortcuts"
+            @onclick="State.ToggleShortcuts" aria-label="Keyboard shortcuts">
+        <Icon Name="keyboard" Size="17" />
+    </button>
+</header>
+
+<style>
+    /* The word "Search" is noise on a narrow screen; the icon carries it. */
+    @@media (max-width: 560px) {
+        .palette-hint { display: none; }
+    }
+</style>
+
+@code {
+    private bool _mac;
+
+    private string ThemeIcon => Store.Profile.Theme switch
+    {
+        "light" => "sun",
+        "dark" => "moon",
+        _ => "monitor",
+    };
+
+    private string ThemeTip => Store.Profile.Theme switch
+    {
+        "light" => "Light theme — click for dark",
+        "dark" => "Dark theme — click to follow your system",
+        _ => "Following your system — click for light",
+    };
+
+    protected override void OnInitialized() => Store.Changed += Refresh;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _mac = await Js.IsApplePlatformAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>Cycles system → light → dark → system.</summary>
+    private async Task CycleThemeAsync()
+    {
+        Store.Profile.Theme = Store.Profile.Theme switch
+        {
+            "light" => "dark",
+            "dark" => "system",
+            _ => "light",
+        };
+
+        await State.ApplyThemeAsync();
+        Store.MarkChanged();
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Store.Changed -= Refresh;
+}

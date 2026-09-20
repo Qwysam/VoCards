@@ -1,0 +1,127 @@
+@*
+    A vertical bar chart for the review forecast.
+
+    Marks follow the spec: 4px rounded data-ends anchored to the baseline, a 2px
+    surface gap between adjacent bars and between the two stacked segments, and a
+    recessive grid. Two series means a legend is always present.
+*@
+
+<div class="chart">
+    <svg viewBox="0 0 @Width @Height" preserveAspectRatio="none"
+         style="height: @(Height)px;" role="img" aria-label="@AriaLabel">
+
+        @* --- recessive gridlines and their value labels --- *@
+        @foreach (double tick in Ticks)
+        {
+            double y = YFor(tick);
+            <line class="grid-line" x1="@Format.Number(PadLeft)" x2="@Format.Number(Width)"
+                  y1="@Format.Number(y)" y2="@Format.Number(y)" />
+            <svg:text class="axis-text" x="0" y="@Format.Number(y + 3)">@((int)tick)</svg:text>
+        }
+
+        <line class="axis-line" x1="@Format.Number(PadLeft)" x2="@Format.Number(Width)"
+              y1="@Format.Number(Baseline)" y2="@Format.Number(Baseline)" />
+
+        @* --- bars --- *@
+        @for (int i = 0; i < Points.Count; i++)
+        {
+            ForecastDay point = Points[i];
+            double x = PadLeft + (i * Step) + BarGap;
+
+            if (point.Due == 0)
+            {
+                continue;
+            }
+
+            double matureHeight = HeightFor(point.Mature);
+            double youngHeight = HeightFor(point.Young);
+
+            @* Mature sits on the baseline and owns the rounded end. *@
+            @if (point.Mature > 0)
+            {
+                <rect class="bar-mark" x="@Format.Number(x)"
+                      y="@Format.Number(Baseline - matureHeight)"
+                      width="@Format.Number(BarWidth)" height="@Format.Number(matureHeight)"
+                      rx="4" fill="var(--viz-1)">
+                    <title>@Format.LongDay(point.Day): @point.Mature mature</title>
+                </rect>
+            }
+
+            @if (point.Young > 0)
+            {
+                @* 2px surface gap keeps the two fills from touching. *@
+                <rect class="bar-mark" x="@Format.Number(x)"
+                      y="@Format.Number(Baseline - matureHeight - youngHeight - (point.Mature > 0 ? 2 : 0))"
+                      width="@Format.Number(BarWidth)" height="@Format.Number(youngHeight)"
+                      rx="4" fill="var(--viz-2)">
+                    <title>@Format.LongDay(point.Day): @point.Young young</title>
+                </rect>
+            }
+        }
+
+        @* --- selective x labels: never one per bar --- *@
+        @for (int i = 0; i < Points.Count; i += LabelEvery)
+        {
+            double x = PadLeft + (i * Step) + (Step / 2);
+            <svg:text class="axis-text" x="@Format.Number(x)" y="@Format.Number(Height - 4)"
+                  text-anchor="middle">@Format.Day(Points[i].Day)</svg:text>
+        }
+    </svg>
+
+    <div class="legend">
+        <span class="legend-item">
+            <span class="legend-swatch" style="background: var(--viz-1);"></span>
+            Mature (21 days or more)
+        </span>
+        <span class="legend-item">
+            <span class="legend-swatch" style="background: var(--viz-2);"></span>
+            Young
+        </span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ForecastDay> Points { get; set; } = [];
+
+    [Parameter] public int Height { get; set; } = 190;
+
+    private const double Width = 720;
+    private const double PadLeft = 26;
+    private const double PadTop = 10;
+    private const double PadBottom = 22;
+    private const double BarGap = 2;
+
+    private double Baseline => Height - PadBottom;
+
+    private double Step => Points.Count == 0 ? 0 : (Width - PadLeft) / Points.Count;
+
+    private double BarWidth => Math.Max(2, Step - (BarGap * 2));
+
+    private int Max => Points.Count == 0 ? 1 : Math.Max(1, Points.Max(p => p.Due));
+
+    private int LabelEvery => Math.Max(1, Points.Count / 7);
+
+    /// <summary>Three gridlines plus the baseline, on round numbers.</summary>
+    private IEnumerable<double> Ticks
+    {
+        get
+        {
+            int max = Max;
+            int stepSize = Math.Max(1, (int)Math.Ceiling(max / 3d));
+
+            for (int value = stepSize; value <= max; value += stepSize)
+            {
+                yield return value;
+            }
+        }
+    }
+
+    private double YFor(double value) =>
+        Baseline - ((value / Max) * (Baseline - PadTop));
+
+    private double HeightFor(int value) =>
+        value <= 0 ? 0 : (value / (double)Max) * (Baseline - PadTop);
+
+    private string AriaLabel =>
+        $"Review forecast: {Points.Sum(p => p.Due)} cards due over the next {Points.Count} days.";
+}

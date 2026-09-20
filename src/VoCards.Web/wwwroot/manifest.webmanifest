@@ -1,22 +1,56 @@
 {
-  "name": "VoCards.Web",
-  "short_name": "VoCards.Web",
-  "id": "./",
-  "start_url": "./",
+  "name": "VoCards — spaced-repetition vocabulary",
+  "short_name": "VoCards",
+  "description": "A local-first flashcard app with SM-2 and FSRS spaced repetition, six study modes, and no account required.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#03173d",
-  "prefer_related_applications": false,
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#f6f6f4",
+  "theme_color": "#7c5fe6",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["education", "productivity"],
   "icons": [
     {
-      "src": "icon-512.png",
+      "src": "icon-192.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "sizes": "512x512"
+      "purpose": "any"
     },
     {
-      "src": "icon-192.png",
+      "src": "icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "sizes": "192x192"
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Study now",
+      "short_name": "Study",
+      "description": "Start a session with everything that is due",
+      "url": "/study"
+    },
+    {
+      "name": "Browse cards",
+      "short_name": "Browse",
+      "description": "Search and edit every card",
+      "url": "/browse"
+    },
+    {
+      "name": "Statistics",
+      "short_name": "Stats",
+      "description": "Retention, forecast and streaks",
+      "url": "/stats"
     }
   ]
 }
