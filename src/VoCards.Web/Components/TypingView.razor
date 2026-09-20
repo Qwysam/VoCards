@@ -1,0 +1,134 @@
+@* Typing mode. On a miss it shows a character-level diff of what was typed
+   against the expected answer, so the mistake is visible rather than just
+   marked wrong. *@
+@inject AppState State
+
+<div class="stack" style="width: 100%; gap: var(--space-6);">
+    <div class="flashcard-face" style="min-height: auto; padding: var(--space-8) var(--space-6);">
+        <p class="eyebrow">@(Question.Direction == StudyDirection.BackToFront ? "Meaning" : "Term")</p>
+        <p class="card-term">@Question.Prompt</p>
+
+        @if (State.SpeechAvailable)
+        {
+            <button type="button" class="btn btn-ghost btn-icon" @onclick="Speak" aria-label="Speak the prompt">
+                <Icon Name="speaker" Size="18" />
+            </button>
+        }
+    </div>
+
+    <div class="stack" style="gap: var(--space-3);">
+        <input id="typing-answer" class="typing-input" type="text" autocomplete="off"
+               autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="Type the answer…" data-result="@ResultAttr"
+               value="@Typed" disabled="@(Grade is not null)"
+               @oninput="OnInput" @onkeydown="OnKeyDown"
+               aria-label="Your answer" />
+
+        @if (Grade is { } grade)
+        {
+            <div class="stack" style="align-items: center; gap: var(--space-3);">
+                @if (grade.Verdict == AnswerVerdict.Correct)
+                {
+                    <p class="badge badge-good" style="font-size: var(--text-sm);">
+                        <Icon Name="check" Size="14" /> Correct
+                    </p>
+                }
+                else if (grade.Verdict == AnswerVerdict.AlmostCorrect)
+                {
+                    <p class="badge badge-warning" style="font-size: var(--text-sm);">
+                        Almost &mdash; watch the spelling
+                    </p>
+
+                    <p class="diff">
+                        @foreach (DiffSegment segment in AnswerGrader.Diff(Typed, grade.ClosestAnswer))
+                        {
+                            <span class="@DiffClass(segment.Kind)">@segment.Text</span>
+                        }
+                    </p>
+                }
+                else
+                {
+                    <p class="badge badge-critical" style="font-size: var(--text-sm);">
+                        <Icon Name="x" Size="14" /> Not quite
+                    </p>
+                }
+
+                @if (grade.Verdict != AnswerVerdict.Correct)
+                {
+                    <p class="card-answer" style="font-size: var(--text-xl);">@grade.ClosestAnswer</p>
+
+                    @if (grade.AcceptedAnswers.Count > 1)
+                    {
+                        <p class="muted" style="font-size: var(--text-xs);">
+                            Also accepted: @string.Join(", ", grade.AcceptedAnswers.Where(a => a != grade.ClosestAnswer))
+                        </p>
+                    }
+                }
+
+                <button type="button" class="btn btn-primary btn-lg" @onclick="OnContinue">
+                    Continue
+                    <kbd>↵</kbd>
+                </button>
+            </div>
+        }
+        else
+        {
+            <button type="button" class="btn btn-primary btn-lg btn-block" @onclick="OnSubmit">
+                Check
+                <kbd>↵</kbd>
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StudyQuestion Question { get; set; } = null!;
+
+    [Parameter] public GradedAnswer? Grade { get; set; }
+
+    [Parameter] public string Typed { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback<string> OnTyped { get; set; }
+
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    private string? ResultAttr => Grade?.Verdict switch
+    {
+        AnswerVerdict.Correct => "correct",
+        AnswerVerdict.AlmostCorrect => "almost",
+        AnswerVerdict.Incorrect => "wrong",
+        _ => null,
+    };
+
+    private static string DiffClass(DiffKind kind) => kind switch
+    {
+        DiffKind.Match => "diff-match",
+        DiffKind.Wrong => "diff-wrong",
+        DiffKind.Extra => "diff-extra",
+        _ => "diff-missing",
+    };
+
+    private Task OnInput(ChangeEventArgs args) =>
+        OnTyped.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key != "Enter")
+        {
+            return;
+        }
+
+        if (Grade is null)
+        {
+            await OnSubmit.InvokeAsync();
+        }
+        else
+        {
+            await OnContinue.InvokeAsync();
+        }
+    }
+
+    private Task Speak() => State.SpeakAsync(Question.Prompt, Question.PromptLanguage);
+}
