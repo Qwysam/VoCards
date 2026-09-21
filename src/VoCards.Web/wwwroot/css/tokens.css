@@ -73,6 +73,12 @@
     --dur-slow: 420ms;
     --dur-flip: 560ms;
 
+    /* A graded card turns face-down and is swept aside; Study.razor waits for
+       exactly these two durations before bringing in the next card. */
+    --dur-flip-back: 200ms;
+    --dur-sweep: 160ms;
+    --ease-in: cubic-bezier(0.5, 0, 0.9, 0.4);
+
     /* ------------------------------------------------------------ surfaces */
     /* Light mode. Slightly warm neutrals so large areas do not feel clinical. */
     --surface-canvas: #f6f6f4;

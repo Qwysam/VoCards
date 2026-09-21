@@ -235,6 +235,31 @@
     transition: none;
 }
 
+/* A new card eases in rather than popping into place. */
+.flashcard[data-animate="true"] {
+    animation: card-enter var(--dur-fast) var(--ease-out) backwards;
+}
+
+/* Grading turns the card back to its face quickly, then sweeps it aside once the
+   turn has finished (hence the delay). The card is removed by Study.razor after
+   both steps, so `forwards` only has to hold the last frame until then. */
+.flashcard[data-leaving="true"] {
+    animation: card-sweep-out var(--dur-sweep) var(--ease-in) var(--dur-flip-back) forwards;
+    pointer-events: none;
+}
+
+.flashcard[data-leaving="true"] .flashcard-inner {
+    transition-duration: var(--dur-flip-back);
+}
+
+@keyframes card-enter {
+    from { opacity: 0; transform: translateX(28px) scale(0.96); }
+}
+
+@keyframes card-sweep-out {
+    to { opacity: 0; transform: translateX(-38%) rotate(-8deg) scale(0.94); }
+}
+
 .flashcard-face {
     grid-area: 1 / 1;
     display: flex;

@@ -9,7 +9,8 @@
 
 <div class="flashcard"
      data-flipped="@Flipped.ToString().ToLowerInvariant()"
-     data-animate="@Animate.ToString().ToLowerInvariant()">
+     data-animate="@Animate.ToString().ToLowerInvariant()"
+     data-leaving="@Leaving.ToString().ToLowerInvariant()">
 
     <div class="flashcard-inner" @onclick="OnFlip">
         @* ---------------------------------------------------------- front -- *@
@@ -78,6 +79,9 @@
     [Parameter, EditorRequired] public StudyQuestion Question { get; set; } = null!;
 
     [Parameter] public bool Flipped { get; set; }
+
+    /// <summary>The card has been graded and is turning back over before it is swept aside.</summary>
+    [Parameter] public bool Leaving { get; set; }
 
     [Parameter] public EventCallback OnFlipRequested { get; set; }
 

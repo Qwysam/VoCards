@@ -73,7 +73,7 @@
             </EmptyState>
         </div>
     }
-    else if (_session.Current is { } question)
+    else if ((_leaving ?? _session.Current) is { } question)
     {
         <div class="study-stage">
             @switch (question.Mode)
@@ -102,16 +102,18 @@
 
                 default:
                     @* Keyed so each question gets a fresh, unflipped card. Reusing one card
-                       would animate its 180° flip-back while already showing the next
-                       question, exposing that card's answer mid-rotation. *@
+                       for the next question would animate its flip-back with that question's
+                       answer already on the back face. The graded card instead stays on screen
+                       as _leaving and turns back over on its own answer. *@
                     <FlashCard @key="(question.Index, question.Card.Id)"
-                               Question="question" Flipped="_flipped" OnFlipRequested="Flip" />
+                               Question="question" Flipped="_flipped"
+                               Leaving="_leaving is not null" OnFlipRequested="Flip" />
                     break;
             }
         </div>
 
         @* ========================================================== footer *@
-        <footer class="study-foot">
+        <footer class="study-foot" inert="@(_leaving is not null)">
             <div class="study-foot-inner stack" style="gap: var(--space-3);">
                 @if (ShowRatingBar)
                 {
@@ -188,8 +190,24 @@
 
     private Card? _editing;
 
+    /// <summary>
+    /// The card just graded in Flip mode, kept on screen while it turns back to its
+    /// face and is swept aside. The session has already moved on to the next card.
+    /// </summary>
+    private StudyQuestion? _leaving;
+
+    private bool _osReducedMotion;
+
+    // These two must match --dur-flip-back and --dur-sweep in tokens.css.
+    private const int LeaveFlipMs = 200;
+    private const int LeaveSweepMs = 160;
+
+    /// <summary>Mirrors FlashCard: the sweep is skipped whenever the flip itself is.</summary>
+    private bool AnimateCards =>
+        Store.Profile.CardFlipAnimation && !Store.Profile.ReduceMotion && !_osReducedMotion;
+
     /// <summary>The rating bar appears once the answer is on screen.</summary>
-    private bool ShowRatingBar => _session?.Current switch
+    private bool ShowRatingBar => _leaving is not null || _session?.Current switch
     {
         // Match grades a whole batch at once, so it never shows the rating bar.
         { Mode: StudyMode.Match } => false,
@@ -219,6 +237,7 @@
     private void Begin()
     {
         _summary = null;
+        _leaving = null;
         _grade = null;
         _typed = string.Empty;
         _flipped = false;
@@ -326,6 +345,7 @@
 
         if (firstRender)
         {
+            _osReducedMotion = await Js.PrefersReducedMotionAsync();
             await FocusTypingAsync();
         }
     }
@@ -355,7 +375,7 @@
     /// <summary>Reveals the answer in the two modes that hide it behind a flip.</summary>
     private void Flip()
     {
-        if (_session?.Current?.Mode is not (StudyMode.Flip or StudyMode.Listening))
+        if (_leaving is not null || _session?.Current?.Mode is not (StudyMode.Flip or StudyMode.Listening))
         {
             return;
         }
@@ -366,21 +386,42 @@
 
     private async Task GradeAsync(Rating rating)
     {
-        if (_session is not { } session)
+        if (_session is not { } session || _leaving is not null)
         {
             return;
         }
 
+        StudyQuestion? graded = session.Current;
+        bool sweepAside = graded is { Mode: StudyMode.Flip } && _flipped && AnimateCards;
+
         AnswerVerdict verdict = _grade?.Verdict ?? AnswerVerdict.Correct;
         string? typed = _grade is null ? null : _typed;
 
+        // Grade first so the recorded response time is not stretched by the animation.
         session.Grade(rating, verdict, typed);
 
         _flipped = false;
         _grade = null;
         _typed = string.Empty;
 
+        Task settled = Task.CompletedTask;
+
+        if (sweepAside)
+        {
+            // Keep the graded card up while it turns back to its face and is swept aside.
+            _leaving = graded;
+            settled = Task.Delay(LeaveFlipMs + LeaveSweepMs);
+            StateHasChanged();
+        }
+
         await State.BlipAsync(rating == Rating.Again ? "wrong" : "correct");
+        await settled;
+        _leaving = null;
+
+        if (_summary is not null)
+        {
+            return; // the learner ended the session while the card was leaving
+        }
 
         if (session.IsFinished)
         {
@@ -562,6 +603,11 @@
         if (_summary is not null)
         {
             return false;
+        }
+
+        if (_leaving is not null)
+        {
+            return true; // the graded card is still leaving; swallow keys rather than act on the next one
         }
 
         if (_session?.Current is not { } question)
