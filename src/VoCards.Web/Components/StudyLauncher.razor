@@ -1,0 +1,195 @@
+@*
+    Picks how to study before starting: mode, direction and which slice of the
+    deck. Without this the six modes would only be reachable by hand-editing the
+    query string.
+*@
+
+<Modal Title="@($"Study {DeckName}")" Wide="true" OnClose="OnCancel">
+    <ChildContent>
+        <div class="stack" style="gap: var(--space-5);">
+            <div class="field">
+                <span class="label">Mode</span>
+                <div class="mode-grid">
+                    @foreach (ModeOption option in Modes)
+                    {
+                        <button type="button" class="mode-card"
+                                aria-pressed="@((_mode == option.Mode).ToString().ToLowerInvariant())"
+                                @onclick="() => _mode = option.Mode">
+                            <span class="mode-glyph"><Icon Name="@option.Icon" Size="19" /></span>
+                            <span class="mode-name">@option.Name</span>
+                            <span class="mode-desc">@option.Description</span>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="grid grid-2" style="gap: var(--space-4);">
+                <div class="field">
+                    <label class="label" for="study-direction">Direction</label>
+                    <select id="study-direction" class="select" @bind="_direction">
+                        <option value="@StudyDirection.FrontToBack">@FrontLabel → @BackLabel</option>
+                        <option value="@StudyDirection.BackToFront">@BackLabel → @FrontLabel</option>
+                        <option value="@StudyDirection.Mixed">Mixed, at random</option>
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="study-scope">Which cards</label>
+                    <select id="study-scope" class="select" @bind="_scope">
+                        <option value="due">Everything due (@DueCount)</option>
+                        <option value="starred">Starred only</option>
+                        <option value="leeches">Leeches only</option>
+                        <option value="cram">Cram — ignore the schedule</option>
+                    </select>
+                </div>
+            </div>
+
+            @if (Tags.Count > 0)
+            {
+                <div class="field">
+                    <label class="label" for="study-tag">Tag</label>
+                    <select id="study-tag" class="select" @bind="_tag">
+                        <option value="">Any tag</option>
+                        @foreach (string tag in Tags)
+                        {
+                            <option value="@tag">@tag</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (_scope == "cram")
+            {
+                <p class="badge badge-warning">
+                    Cram pulls from the whole deck and does not change your schedule.
+                </p>
+            }
+        </div>
+    </ChildContent>
+
+    <Footer>
+        <button type="button" class="btn" @onclick="OnCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" @onclick="Start">
+            <Icon Name="play" Size="15" />
+            Start
+        </button>
+    </Footer>
+</Modal>
+
+<style>
+    .mode-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+        gap: var(--space-2);
+    }
+
+    .mode-card {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: var(--space-3);
+        text-align: left;
+        background: var(--surface-1);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        transition:
+            border-color var(--dur-fast) var(--ease-out),
+            background var(--dur-fast) var(--ease-out);
+    }
+
+    .mode-card:hover { border-color: var(--accent-400); }
+
+    .mode-card[aria-pressed="true"] {
+        border-color: var(--accent-500);
+        background: color-mix(in oklab, var(--accent-500) 12%, transparent);
+    }
+
+    .mode-glyph { color: var(--accent-600); }
+
+    .mode-name { font-size: var(--text-sm); font-weight: 650; }
+
+    .mode-desc { font-size: var(--text-2xs); color: var(--text-muted); line-height: 1.35; }
+</style>
+
+@code {
+    [Parameter] public string DeckName { get; set; } = "everything";
+
+    [Parameter] public Guid? DeckId { get; set; }
+
+    [Parameter] public int DueCount { get; set; }
+
+    [Parameter] public IReadOnlyList<string> Tags { get; set; } = [];
+
+    [Parameter] public string FrontLanguageLabel { get; set; } = "Front";
+
+    [Parameter] public string BackLanguageLabel { get; set; } = "Back";
+
+    [Parameter] public StudyMode InitialMode { get; set; } = StudyMode.Flip;
+
+    [Parameter] public StudyDirection InitialDirection { get; set; } = StudyDirection.FrontToBack;
+
+    [Parameter] public EventCallback<string> OnStart { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private StudyMode _mode;
+    private StudyDirection _direction;
+    private string _scope = "due";
+    private string _tag = string.Empty;
+
+    private string FrontLabel => FrontLanguageLabel;
+
+    private string BackLabel => BackLanguageLabel;
+
+    private sealed record ModeOption(StudyMode Mode, string Name, string Icon, string Description);
+
+    private static readonly ModeOption[] Modes =
+    [
+        new(StudyMode.Flip, "Flip", "cards", "See it, flip it, grade yourself."),
+        new(StudyMode.MultipleChoice, "Multiple choice", "list", "Pick from four options."),
+        new(StudyMode.Typing, "Typing", "type", "Type it out; typos are forgiven."),
+        new(StudyMode.Listening, "Listening", "speaker", "Hear it first, no text."),
+        new(StudyMode.Match, "Match", "grid", "Pair five at a time."),
+        new(StudyMode.SpeedRound, "Speed round", "zap", "Multiple choice, against the clock."),
+    ];
+
+    protected override void OnParametersSet()
+    {
+        _mode = InitialMode;
+        _direction = InitialDirection;
+    }
+
+    /// <summary>Builds the study URL from the chosen options.</summary>
+    private Task Start()
+    {
+        string path = DeckId is { } id ? $"/study/{id}" : "/study";
+
+        var query = new List<string>
+        {
+            $"mode={_mode}",
+            $"dir={_direction}",
+        };
+
+        switch (_scope)
+        {
+            case "starred":
+                query.Add("starred=1");
+                break;
+            case "leeches":
+                query.Add("leeches=1");
+                break;
+            case "cram":
+                query.Add("cram=1");
+                break;
+            default:
+                break;
+        }
+
+        if (_tag is { Length: > 0 })
+        {
+            query.Add($"tag={Uri.EscapeDataString(_tag)}");
+        }
+
+        return OnStart.InvokeAsync($"{path}?{string.Join('&', query)}");
+    }
+}

@@ -1,0 +1,526 @@
+@page "/settings"
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject ToastService Toasts
+@inject JsBridge Js
+
+<PageTitle>Settings — VoCards</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Settings</h1>
+        <p>Everything is stored in this browser. Nothing is uploaded anywhere.</p>
+    </div>
+</div>
+
+<div class="grid grid-2" style="align-items: start;">
+
+    @* ====================================================== appearance == *@
+    <section class="panel">
+        <div class="panel-head"><h2>Appearance</h2></div>
+        <div class="panel-body stack">
+            <div class="field">
+                <span class="label">Theme</span>
+                <div class="segmented" role="group" aria-label="Theme">
+                    <button type="button" aria-pressed="@(Profile.Theme == "light")" @onclick='() => SetTheme("light")'>
+                        <Icon Name="sun" Size="14" /> Light
+                    </button>
+                    <button type="button" aria-pressed="@(Profile.Theme == "dark")" @onclick='() => SetTheme("dark")'>
+                        <Icon Name="moon" Size="14" /> Dark
+                    </button>
+                    <button type="button" aria-pressed="@(Profile.Theme == "system")" @onclick='() => SetTheme("system")'>
+                        <Icon Name="monitor" Size="14" /> System
+                    </button>
+                </div>
+            </div>
+
+            <div class="field">
+                <span class="label">Accent</span>
+                <div class="swatch-row">
+                    @foreach (string accent in Accents)
+                    {
+                        <button type="button" class="swatch" data-accent-preview="@accent"
+                                style="--swatch: @AccentPreview(accent);"
+                                aria-pressed="@((Profile.Accent == accent).ToString().ToLowerInvariant())"
+                                aria-label="@accent" @onclick="() => SetAccent(accent)"></button>
+                    }
+                </div>
+                <p class="hint">
+                    The accent only styles the interface. Chart colours are fixed, so switching
+                    accent can never make a chart harder to read.
+                </p>
+            </div>
+
+            <div>
+                <div class="switch-row">
+                    <div>
+                        <p style="font-weight: 600; font-size: var(--text-sm);">Card flip animation</p>
+                        <p class="hint">Rotate the card in 3D when it flips.</p>
+                    </div>
+                    <button type="button" class="switch" role="switch"
+                            aria-checked="@Profile.CardFlipAnimation.ToString().ToLowerInvariant()"
+                            aria-label="Card flip animation"
+                            @onclick="() => Toggle(() => Profile.CardFlipAnimation = !Profile.CardFlipAnimation)"></button>
+                </div>
+
+                <div class="switch-row">
+                    <div>
+                        <p style="font-weight: 600; font-size: var(--text-sm);">Reduce motion</p>
+                        <p class="hint">Turn off transitions and animations throughout.</p>
+                    </div>
+                    <button type="button" class="switch" role="switch"
+                            aria-checked="@Profile.ReduceMotion.ToString().ToLowerInvariant()"
+                            aria-label="Reduce motion"
+                            @onclick="ToggleMotionAsync"></button>
+                </div>
+
+                <div class="switch-row">
+                    <div>
+                        <p style="font-weight: 600; font-size: var(--text-sm);">Sound effects</p>
+                        <p class="hint">Short blips on correct and incorrect answers.</p>
+                    </div>
+                    <button type="button" class="switch" role="switch"
+                            aria-checked="@Profile.SoundEffects.ToString().ToLowerInvariant()"
+                            aria-label="Sound effects"
+                            @onclick="() => Toggle(() => Profile.SoundEffects = !Profile.SoundEffects)"></button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @* ========================================================= studying == *@
+    <section class="panel">
+        <div class="panel-head"><h2>Studying</h2></div>
+        <div class="panel-body stack">
+            <div class="field">
+                <label class="label" for="goal">
+                    Daily goal — <strong>@Profile.DailyGoal reviews</strong>
+                </label>
+                <input id="goal" class="slider" type="range" min="5" max="200" step="5"
+                       value="@Profile.DailyGoal"
+                       @oninput="e => SetGoal(e.Value?.ToString())" />
+                <p class="hint">Hitting this fills the ring on your dashboard and keeps the streak alive.</p>
+            </div>
+
+            <div class="field">
+                <label class="label" for="name">Display name</label>
+                <input id="name" class="input" value="@Profile.DisplayName"
+                       @onchange="e => SetName(e.Value?.ToString())" />
+            </div>
+
+            <div class="switch-row">
+                <div>
+                    <p style="font-weight: 600; font-size: var(--text-sm);">Show accepted alternatives</p>
+                    <p class="hint">After a typing miss, list every answer that would have been accepted.</p>
+                </div>
+                <button type="button" class="switch" role="switch"
+                        aria-checked="@Profile.ShowAlternatives.ToString().ToLowerInvariant()"
+                        aria-label="Show accepted alternatives"
+                        @onclick="() => Toggle(() => Profile.ShowAlternatives = !Profile.ShowAlternatives)"></button>
+            </div>
+
+            <div class="field">
+                <span class="label">Streak</span>
+                <div class="row-wrap">
+                    <span class="badge badge-accent">
+                        <Icon Name="flame" Size="12" /> @Profile.CurrentStreak days
+                    </span>
+                    <span class="badge">best @Profile.LongestStreak</span>
+                    <span class="badge badge-info">🧊 @Profile.StreakFreezes freezes</span>
+                </div>
+                <p class="hint">A freeze is spent automatically to cover a single missed day.</p>
+            </div>
+        </div>
+    </section>
+
+    @* ============================================================ speech == *@
+    <section class="panel">
+        <div class="panel-head"><h2>Pronunciation</h2></div>
+        <div class="panel-body stack">
+            @if (!State.SpeechAvailable)
+            {
+                <p class="badge badge-warning">This browser does not offer speech synthesis.</p>
+            }
+            else
+            {
+                <div class="field">
+                    <label class="label" for="voice">Voice</label>
+                    <select id="voice" class="select" value="@(Profile.PreferredVoice ?? string.Empty)"
+                            @onchange="e => SetVoice(e.Value?.ToString())">
+                        <option value="">Match the deck's language automatically</option>
+                        @foreach (VoiceInfo voice in State.Voices)
+                        {
+                            <option value="@voice.Uri">@voice.Name — @voice.Lang</option>
+                        }
+                    </select>
+                    <p class="hint">
+                        Leaving this on automatic picks a voice matching each deck's language,
+                        which is usually what you want for a multilingual library.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="rate">Speed — @Format.Number(Profile.SpeechRate)&times;</label>
+                    <input id="rate" class="slider" type="range" min="0.5" max="1.6" step="0.05"
+                           value="@Format.Number(Profile.SpeechRate)"
+                           @oninput="e => SetRate(e.Value?.ToString())" />
+                </div>
+
+                <div class="field">
+                    <label class="label" for="pitch">Pitch — @Format.Number(Profile.SpeechPitch)</label>
+                    <input id="pitch" class="slider" type="range" min="0.5" max="1.5" step="0.05"
+                           value="@Format.Number(Profile.SpeechPitch)"
+                           @oninput="e => SetPitch(e.Value?.ToString())" />
+                </div>
+
+                <button type="button" class="btn btn-outline" @onclick="TestVoiceAsync">
+                    <Icon Name="speaker" Size="15" />
+                    Test the voice
+                </button>
+            }
+        </div>
+    </section>
+
+    @* ============================================================== data == *@
+    <section class="panel" id="data">
+        <div class="panel-head"><h2>Your data</h2></div>
+        <div class="panel-body stack">
+            <div class="row-wrap">
+                <button type="button" class="btn btn-outline" @onclick="ExportAsync">
+                    <Icon Name="download" Size="15" /> Export everything
+                </button>
+
+                <label class="btn btn-outline" style="cursor: pointer;">
+                    <Icon Name="upload" Size="15" /> Import a file
+                    <InputFile OnChange="ImportAsync" accept=".json,.csv,.tsv,.txt" style="display: none;" />
+                </label>
+            </div>
+
+            <p class="hint">
+                Export writes a single JSON file holding every deck, card, review and setting —
+                a complete backup. Import accepts that file, a single exported deck, or a plain
+                CSV/TSV word list with the term in the first column and the meaning in the second.
+            </p>
+
+            @if (_importReport is { } report)
+            {
+                <div class="stack" style="gap: var(--space-2); padding: var(--space-3);
+                     background: var(--surface-2); border-radius: var(--radius-md);">
+                    <p style="font-size: var(--text-sm); font-weight: 600;">
+                        Imported @report.Imported cards@(report.Skipped > 0 ? $", skipped {report.Skipped}" : string.Empty).
+                    </p>
+                    @foreach (string problem in report.Problems.Take(6))
+                    {
+                        <p class="muted" style="font-size: var(--text-xs);">@problem</p>
+                    }
+                </div>
+            }
+
+            @if (_storage is { } storage)
+            {
+                <div class="field">
+                    <span class="label">Browser storage</span>
+                    <div class="bar bar-sm">
+                        <div class="bar-fill" style="width: @Format.Percent(storage.Fraction)"></div>
+                    </div>
+                    <p class="hint">@storage.UsageLabel used of roughly @storage.QuotaLabel available.</p>
+                </div>
+            }
+
+            <hr style="border: none; border-top: 1px solid var(--border-subtle); margin: var(--space-2) 0;" />
+
+            <div class="row-wrap">
+                <button type="button" class="btn btn-danger btn-sm" @onclick="() => _confirm = ConfirmKind.Reset">
+                    <Icon Name="refresh" Size="14" /> Reset to the sample library
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" @onclick="() => _confirm = ConfirmKind.Clear">
+                    <Icon Name="trash" Size="14" /> Delete everything
+                </button>
+            </div>
+        </div>
+    </section>
+
+    @* ============================================================ about == *@
+    <section class="panel">
+        <div class="panel-head"><h2>About</h2></div>
+        <div class="panel-body stack" style="font-size: var(--text-sm);">
+            <p class="secondary">
+                VoCards began in 2021 as a .NET Core 3.1 console app with nine hard-coded
+                English&ndash;Russian words. It is now a .NET 10 domain library with SM-2 and
+                FSRS scheduling, behind a Blazor WebAssembly front end.
+            </p>
+
+            <div class="row-wrap">
+                <span class="badge">.NET 10</span>
+                <span class="badge">Blazor WebAssembly</span>
+                <span class="badge">Local-first</span>
+                <span class="badge">No account</span>
+            </div>
+
+            <dl class="stack" style="gap: var(--space-2);">
+                <div class="row">
+                    <dt class="muted" style="flex: 1;">Decks</dt>
+                    <dd class="tnum">@Store.Library.DeckCount</dd>
+                </div>
+                <div class="row">
+                    <dt class="muted" style="flex: 1;">Cards</dt>
+                    <dd class="tnum">@Format.Count(Store.Library.TotalCards)</dd>
+                </div>
+                <div class="row">
+                    <dt class="muted" style="flex: 1;">Reviews recorded</dt>
+                    <dd class="tnum">@Format.Count(Store.Library.History.Count)</dd>
+                </div>
+                <div class="row">
+                    <dt class="muted" style="flex: 1;">Lifetime reviews</dt>
+                    <dd class="tnum">@Format.Count(Store.Profile.LifetimeReviews)</dd>
+                </div>
+            </dl>
+
+            <button type="button" class="btn btn-ghost btn-sm" @onclick="State.ToggleShortcuts">
+                <Icon Name="keyboard" Size="15" /> Keyboard shortcuts
+            </button>
+        </div>
+    </section>
+</div>
+
+@if (_confirm == ConfirmKind.Reset)
+{
+    <ConfirmDialog Title="Reset to the sample library?"
+                   Message="Every deck, card and review you have will be replaced by the starter library."
+                   Detail="Export a backup first if you want any of it back."
+                   ConfirmLabel="Reset everything"
+                   OnConfirm="ResetAsync" OnCancel="() => _confirm = ConfirmKind.None" />
+}
+
+@if (_confirm == ConfirmKind.Clear)
+{
+    <ConfirmDialog Title="Delete everything?"
+                   Message="Every deck, card and review is removed, leaving an empty library."
+                   Detail="This cannot be undone. Export a backup first if you might want them back."
+                   ConfirmLabel="Delete everything"
+                   OnConfirm="ClearAsync" OnCancel="() => _confirm = ConfirmKind.None" />
+}
+
+@code {
+    private enum ConfirmKind { None, Reset, Clear }
+
+    private ConfirmKind _confirm = ConfirmKind.None;
+    private ImportReport? _importReport;
+    private StorageEstimate? _storage;
+
+    private UserProfile Profile => Store.Profile;
+
+    private static readonly string[] Accents =
+        ["violet", "aurora", "ember", "forest", "rose", "midnight"];
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Refresh;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _storage = await Js.StorageEstimateAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>The 500-step of each accent, for the swatch previews.</summary>
+    private static string AccentPreview(string accent) => accent switch
+    {
+        "aurora" => "#12a89f",
+        "ember" => "#e25f32",
+        "forest" => "#3f9a4b",
+        "rose" => "#db4b7c",
+        "midnight" => "#4263c9",
+        _ => "#7c5fe6",
+    };
+
+    // ------------------------------------------------------------ mutation
+
+    private void Toggle(Action change)
+    {
+        change();
+        Store.MarkChanged();
+    }
+
+    private async Task SetTheme(string theme)
+    {
+        Profile.Theme = theme;
+        await State.ApplyThemeAsync();
+        Store.MarkChanged();
+    }
+
+    private async Task SetAccent(string accent)
+    {
+        Profile.Accent = accent;
+        await State.ApplyThemeAsync();
+        Store.MarkChanged();
+    }
+
+    private async Task ToggleMotionAsync()
+    {
+        Profile.ReduceMotion = !Profile.ReduceMotion;
+        await State.ApplyThemeAsync();
+        Store.MarkChanged();
+    }
+
+    private void SetGoal(string? value)
+    {
+        if (int.TryParse(value, out int goal))
+        {
+            Profile.DailyGoal = Math.Clamp(goal, 1, 1000);
+            Store.MarkChanged();
+        }
+    }
+
+    private void SetName(string? value)
+    {
+        Profile.DisplayName = string.IsNullOrWhiteSpace(value) ? "Learner" : value.Trim();
+        Store.MarkChanged();
+    }
+
+    private void SetVoice(string? uri)
+    {
+        Profile.PreferredVoice = string.IsNullOrWhiteSpace(uri) ? null : uri;
+        Store.MarkChanged();
+    }
+
+    private void SetRate(string? value)
+    {
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double rate))
+        {
+            Profile.SpeechRate = Math.Clamp(rate, 0.5d, 2d);
+            Store.MarkChanged();
+        }
+    }
+
+    private void SetPitch(string? value)
+    {
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double pitch))
+        {
+            Profile.SpeechPitch = Math.Clamp(pitch, 0d, 2d);
+            Store.MarkChanged();
+        }
+    }
+
+    private Task TestVoiceAsync() =>
+        State.SpeakAsync("This is how your cards will sound.", "en-US");
+
+    // -------------------------------------------------------------- import
+
+    private async Task ExportAsync()
+    {
+        string json = VoCardsJson.Serialize(Store.Library, pretty: true);
+        await Js.DownloadAsync($"vocards-backup-{DateTime.Now:yyyy-MM-dd}.json", json, "application/json");
+        Toasts.Success("Backup downloaded.");
+    }
+
+    /// <summary>
+    /// Accepts a full backup, a single exported deck, or a plain delimited word
+    /// list, deciding which by trying each in turn.
+    /// </summary>
+    private async Task ImportAsync(InputFileChangeEventArgs args)
+    {
+        _importReport = null;
+
+        IBrowserFile file = args.File;
+
+        // 24 MB is far past any realistic library, and stops a stray huge file
+        // from exhausting the WebAssembly heap.
+        const long maxBytes = 24L * 1024 * 1024;
+
+        if (file.Size > maxBytes)
+        {
+            Toasts.Error("That file is too large to import.");
+            return;
+        }
+
+        string content;
+
+        try
+        {
+            using var reader = new StreamReader(file.OpenReadStream(maxBytes));
+            content = await reader.ReadToEndAsync();
+        }
+        catch (IOException ex)
+        {
+            Toasts.Error($"That file could not be read: {ex.Message}");
+            return;
+        }
+
+        string name = Path.GetFileNameWithoutExtension(file.Name);
+        bool looksLikeJson = content.TrimStart().StartsWith('{');
+
+        if (looksLikeJson)
+        {
+            // A full library first, then a single deck.
+            var asLibrary = VoCardsJson.Deserialize(content);
+
+            if (asLibrary.IsSuccess)
+            {
+                await Store.ReplaceAsync(asLibrary.Value!);
+                await State.ApplyThemeAsync();
+                Toasts.Success($"Imported {asLibrary.Value!.TotalCards} cards.");
+                return;
+            }
+
+            var asDeck = VoCardsJson.DeserializeDeck(content);
+
+            if (asDeck.IsSuccess)
+            {
+                AddDeck(asDeck.Value!);
+                return;
+            }
+
+            Toasts.Error(asLibrary.Error!);
+            return;
+        }
+
+        var delimited = DelimitedPorter.Import(content, name);
+
+        if (delimited.IsFailure)
+        {
+            Toasts.Error(delimited.Error!);
+            return;
+        }
+
+        (Deck deck, ImportReport report) = delimited.Value!;
+        _importReport = report;
+        AddDeck(deck);
+    }
+
+    private void AddDeck(Deck deck)
+    {
+        deck.Rename(Store.Library.UniqueName(deck.Name));
+        Store.Library.AddDeck(deck);
+        Store.MarkChanged();
+        Toasts.Success($"Imported “{deck.Name}” with {deck.TotalCards} cards.");
+    }
+
+    // --------------------------------------------------------------- reset
+
+    private async Task ResetAsync()
+    {
+        _confirm = ConfirmKind.None;
+        await Store.ResetAsync();
+        await State.ApplyThemeAsync();
+        Toasts.Show("Reset to the sample library.");
+    }
+
+    private async Task ClearAsync()
+    {
+        _confirm = ConfirmKind.None;
+        await Store.ClearAsync();
+        Toasts.Show("Everything deleted.");
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Store.Changed -= Refresh;
+}

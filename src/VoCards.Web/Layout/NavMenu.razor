@@ -1,0 +1,109 @@
+@implements IDisposable
+@inject LibraryStore Store
+
+<aside class="sidebar">
+    <a class="brand" href="">
+        <span class="brand-mark"><Icon Name="cards" Size="20" /></span>
+        <span class="brand-name">Vo<span>Cards</span></span>
+    </a>
+
+    <nav class="nav" aria-label="Main">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <Icon Name="home" />
+            <span>Dashboard</span>
+            @if (_due > 0)
+            {
+                <span class="nav-count">@_due</span>
+            }
+        </NavLink>
+
+        <NavLink class="nav-link" href="decks">
+            <Icon Name="layers" />
+            <span>Decks</span>
+        </NavLink>
+
+        <NavLink class="nav-link" href="browse">
+            <Icon Name="search" />
+            <span>Browse</span>
+        </NavLink>
+
+        <NavLink class="nav-link" href="stats">
+            <Icon Name="chart" />
+            <span>Statistics</span>
+        </NavLink>
+
+        <NavLink class="nav-link" href="achievements">
+            <Icon Name="trophy" />
+            <span>Achievements</span>
+        </NavLink>
+
+        <NavLink class="nav-link" href="settings">
+            <Icon Name="settings" />
+            <span>Settings</span>
+        </NavLink>
+    </nav>
+
+    <div class="level-card">
+        <div class="row" style="margin-bottom: var(--space-2);">
+            <span class="eyebrow">Level @_level</span>
+            <span class="spacer"></span>
+            <span class="badge badge-accent">
+                <Icon Name="flame" Size="12" />
+                @_streak
+            </span>
+        </div>
+
+        <div class="bar bar-sm" role="progressbar"
+             aria-valuenow="@((int)(_levelProgress * 100))" aria-valuemin="0" aria-valuemax="100"
+             aria-label="Progress to the next level">
+            <div class="bar-fill" style="width: @Pct(_levelProgress)"></div>
+        </div>
+
+        <p class="muted" style="font-size: var(--text-2xs); margin-top: var(--space-2);">
+            @_xpInto / @_xpNeeded XP to level @(_level + 1)
+        </p>
+    </div>
+</aside>
+
+@code {
+    private int _due;
+    private int _level = 1;
+    private int _streak;
+    private double _levelProgress;
+    private long _xpInto;
+    private long _xpNeeded;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Refresh;
+        Read();
+    }
+
+    protected override void OnParametersSet() => Read();
+
+    private void Read()
+    {
+        if (!Store.IsReady)
+        {
+            return;
+        }
+
+        _due = Store.Library.DueCount(Store.Now);
+        _level = Store.Profile.Level;
+        _streak = Store.Profile.CurrentStreak;
+        _levelProgress = Store.Profile.LevelProgress;
+        _xpInto = Store.Profile.XpIntoLevel;
+        _xpNeeded = Store.Profile.XpForNextLevel;
+    }
+
+    private static string Pct(double fraction) =>
+        string.Create(CultureInfo.InvariantCulture, $"{Math.Clamp(fraction, 0d, 1d) * 100:0.##}%");
+
+    private void Refresh()
+    {
+        Read();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Store.Changed -= Refresh;
+}

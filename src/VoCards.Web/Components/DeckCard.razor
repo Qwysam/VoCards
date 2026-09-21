@@ -1,0 +1,85 @@
+@* One deck in the deck grid. The whole tile is the link; the pin is a separate
+   control layered on top. *@
+@inject LibraryStore Store
+
+<div class="deck-card" data-deck="@Deck.ColorToken">
+    <a href="decks/@Deck.Id" class="deck-card-link" aria-label="Open @Deck.Name"></a>
+
+    <div class="row" style="gap: var(--space-3);">
+        <span class="deck-glyph" aria-hidden="true">@Deck.Emoji</span>
+
+        <div style="min-width: 0; flex: 1;">
+            <p class="deck-name truncate">@Deck.Name</p>
+            <p class="deck-desc clamp-2">
+                @(string.IsNullOrWhiteSpace(Deck.Description) ? $"{Deck.TotalCards} cards" : Deck.Description)
+            </p>
+        </div>
+    </div>
+
+    <div class="bar bar-sm" role="progressbar" aria-valuenow="@((int)(Deck.Mastery * 100))"
+         aria-valuemin="0" aria-valuemax="100" aria-label="Mastery of @Deck.Name">
+        <div class="bar-fill" style="width: @Format.Percent(Deck.Mastery); background: var(--deck);"></div>
+    </div>
+
+    <div class="deck-meta">
+        <span>@Format.PercentLabel(Deck.Mastery) mastered</span>
+        <span aria-hidden="true">·</span>
+        <span>@Deck.TotalCards cards</span>
+
+        <span class="spacer" style="flex: 1;"></span>
+
+        @if (Due > 0)
+        {
+            <span class="badge badge-accent badge-dot">@Due due</span>
+        }
+        else if (Deck.NextDueAt(Store.Now) is { } next)
+        {
+            <span class="badge">@Format.Relative(next, Store.Now)</span>
+        }
+        else if (Deck.TotalCards > 0)
+        {
+            <span class="badge badge-good">
+                <Icon Name="check" Size="11" />
+                Clear
+            </span>
+        }
+    </div>
+
+    <button type="button" class="btn btn-ghost btn-icon btn-sm deck-pin tip"
+            data-pinned="@Deck.IsPinned.ToString().ToLowerInvariant()"
+            data-tip="@(Deck.IsPinned ? "Unpin" : "Pin to the top")"
+            @onclick="TogglePin" aria-label="@(Deck.IsPinned ? "Unpin deck" : "Pin deck")">
+        <Icon Name="pin" Size="15" />
+    </button>
+</div>
+
+<style>
+    /* Stretched link: the whole card is clickable, but the pin button still is
+       not, because it sits above the pseudo-element. */
+    .deck-card-link::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+    }
+
+    .deck-card .deck-pin {
+        position: absolute;
+        z-index: 1;
+    }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public Deck Deck { get; set; } = null!;
+
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private int Due => Deck.DueCount(Store.Now);
+
+    private async Task TogglePin()
+    {
+        Deck.TogglePin();
+        Store.Library.Sort();
+        Store.MarkChanged();
+        await Changed.InvokeAsync();
+    }
+}

@@ -1,0 +1,124 @@
+@* Create or edit a card. The same dialog serves both, so the two paths cannot
+   drift apart. *@
+
+<Modal Title="@(IsNew ? "New card" : "Edit card")" OnClose="OnCancel">
+    <ChildContent>
+        <div class="stack">
+            <div class="field">
+                <label class="label" for="card-front">Front &mdash; the term</label>
+                <input id="card-front" class="input" @bind="_front" @bind:event="oninput"
+                       placeholder="e.g. house" autocomplete="off" />
+            </div>
+
+            <div class="field">
+                <label class="label" for="card-back">Back &mdash; the meaning</label>
+                <input id="card-back" class="input" @bind="_back" @bind:event="oninput"
+                       placeholder="e.g. la casa" autocomplete="off" />
+                <p class="hint">
+                    Separate alternatives with commas &mdash; &ldquo;big, large&rdquo; accepts either
+                    when you are typing answers.
+                </p>
+            </div>
+
+            <div class="field">
+                <label class="label" for="card-example">Example sentence <span class="muted">(optional)</span></label>
+                <textarea id="card-example" class="textarea" @bind="_example"
+                          placeholder="Mi casa es su casa"></textarea>
+            </div>
+
+            <div class="grid grid-2" style="gap: var(--space-4);">
+                <div class="field">
+                    <label class="label" for="card-pron">Pronunciation <span class="muted">(optional)</span></label>
+                    <input id="card-pron" class="input" @bind="_pronunciation" placeholder="/ˈkasa/" />
+                </div>
+
+                <div class="field">
+                    <label class="label" for="card-tags">Tags <span class="muted">(space separated)</span></label>
+                    <input id="card-tags" class="input" @bind="_tags" placeholder="nouns home" />
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label" for="card-notes">Notes <span class="muted">(optional)</span></label>
+                <textarea id="card-notes" class="textarea" @bind="_notes"
+                          placeholder="Feminine. Mnemonic: a casa has a roof like a Δ."></textarea>
+            </div>
+
+            @if (_error is { Length: > 0 })
+            {
+                <p class="badge badge-critical" role="alert">@_error</p>
+            }
+        </div>
+    </ChildContent>
+
+    <Footer>
+        @if (!IsNew && OnDelete.HasDelegate)
+        {
+            <button type="button" class="btn btn-danger" @onclick="OnDelete">
+                <Icon Name="trash" Size="15" />
+                Delete
+            </button>
+            <span class="spacer" style="flex: 1;"></span>
+        }
+
+        <button type="button" class="btn" @onclick="OnCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" @onclick="SaveAsync">
+            @(IsNew ? "Add card" : "Save")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    /// <summary>The card being edited, or null to create a new one.</summary>
+    [Parameter] public Card? Card { get; set; }
+
+    [Parameter] public EventCallback<CardDraft> OnSave { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private string _front = string.Empty;
+    private string _back = string.Empty;
+    private string _example = string.Empty;
+    private string _notes = string.Empty;
+    private string _pronunciation = string.Empty;
+    private string _tags = string.Empty;
+    private string? _error;
+
+    private bool IsNew => Card is null;
+
+    protected override void OnParametersSet()
+    {
+        if (Card is not { } card)
+        {
+            return;
+        }
+
+        _front = card.Front;
+        _back = card.Back;
+        _example = card.Example ?? string.Empty;
+        _notes = card.Notes ?? string.Empty;
+        _pronunciation = card.Pronunciation ?? string.Empty;
+        _tags = string.Join(' ', card.Tags);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_front) || string.IsNullOrWhiteSpace(_back))
+        {
+            _error = "A card needs both a front and a back.";
+            return;
+        }
+
+        _error = null;
+
+        await OnSave.InvokeAsync(new CardDraft(
+            _front.Trim(),
+            _back.Trim(),
+            _example.Trim(),
+            _notes.Trim(),
+            _pronunciation.Trim(),
+            _tags.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
+    }
+}

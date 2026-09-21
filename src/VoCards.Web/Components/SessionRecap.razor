@@ -1,0 +1,127 @@
+@* The screen a session ends on: the headline verdict, the tallies, and a
+   per-card recap so a miss can be acted on immediately. *@
+
+<div class="study-stage" style="justify-content: flex-start; padding-top: var(--space-8);">
+    <div class="summary-hero animate-rise">
+        <div class="empty-glyph" style="font-size: 2.25rem;">@Glyph</div>
+        <p class="eyebrow">@DeckName</p>
+        <p class="summary-grade">@Summary.Headline</p>
+        <p class="secondary">
+            @Summary.Correct of @Summary.Total correct — @Format.PercentLabel(Summary.Accuracy)
+        </p>
+    </div>
+
+    <section class="grid grid-stats" style="width: 100%;">
+        <StatTile Label="Accuracy" Value="@Format.PercentLabel(Summary.Accuracy)" Icon="target"
+                  Tone="@(Summary.Accuracy >= 0.8 ? "good" : null)" Progress="@Summary.Accuracy" />
+        <StatTile Label="XP earned" Value="@($"+{Summary.XpEarned}")" Icon="zap" Tone="accent"
+                  Meta="@(Summary.LevelsGained > 0 ? $"{Summary.LevelsGained} level up!" : null)" />
+        <StatTile Label="Time" Value="@Format.Duration(Summary.Duration)" Icon="clock"
+                  Meta="@($"{Format.Seconds(Summary.AverageTime)} per card")" />
+        <StatTile Label="Streak" Value="@StreakText" Icon="flame"
+                  Tone="@(Summary.StreakOutcome == StreakOutcome.Broken ? "warning" : "accent")" />
+    </section>
+
+    @* --- rating spread, direct-labelled so colour is never the only cue --- *@
+    <section class="panel" style="width: 100%;">
+        <div class="panel-head"><h3>How it went</h3></div>
+        <div class="panel-body stack" style="gap: var(--space-3);">
+            @foreach ((string label, int count, string color) in Spread)
+            {
+                <div class="row" style="gap: var(--space-3); font-size: var(--text-sm);">
+                    <span class="legend-swatch" style="background: @color;"></span>
+                    <span style="min-width: 4rem;">@label</span>
+                    <div class="bar" style="flex: 1;">
+                        <div class="bar-fill"
+                             style="width: @Format.Percent(Summary.Total == 0 ? 0 : (double)count / Summary.Total); background: @color;"></div>
+                    </div>
+                    <span class="tnum" style="min-width: 2rem; text-align: right; font-weight: 650;">@count</span>
+                </div>
+            }
+        </div>
+    </section>
+
+    @if (Summary.Missed.Count > 0)
+    {
+        <section class="panel" style="width: 100%;">
+            <div class="panel-head">
+                <h3>Worth another look</h3>
+                <span class="spacer"></span>
+                <span class="badge badge-critical">@Summary.Missed.Count</span>
+            </div>
+
+            <div class="table-wrap">
+                <table class="data">
+                    <tbody>
+                        @foreach (SessionCardResult result in Summary.Missed)
+                        {
+                            <tr @key="result.CardId">
+                                <td><strong>@result.Front</strong></td>
+                                <td class="secondary">@result.Back</td>
+                                @if (result.TypedAnswer is { Length: > 0 } typed)
+                                {
+                                    <td class="muted mono" style="font-size: var(--text-xs);">you typed &ldquo;@typed&rdquo;</td>
+                                }
+                                else
+                                {
+                                    <td></td>
+                                }
+                                <td class="muted tnum" style="font-size: var(--text-xs);">@result.NextInterval</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+
+    <div class="row-wrap" style="justify-content: center; width: 100%; padding-bottom: var(--space-8);">
+        <button type="button" class="btn btn-outline btn-lg" @onclick="OnAgain">
+            <Icon Name="refresh" Size="17" />
+            Another round
+        </button>
+        <button type="button" class="btn btn-primary btn-lg" @onclick="OnDone">
+            <Icon Name="check" Size="17" />
+            Done
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SessionSummary Summary { get; set; } = null!;
+
+    [Parameter] public string DeckName { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback OnAgain { get; set; }
+
+    [Parameter] public EventCallback OnDone { get; set; }
+
+    private string Glyph => Summary.Accuracy switch
+    {
+        >= 0.95 => "🏆",
+        >= 0.80 => "✨",
+        >= 0.60 => "👏",
+        >= 0.40 => "💪",
+        _ => "🌱",
+    };
+
+    private string StreakText => Summary.StreakOutcome switch
+    {
+        StreakOutcome.Started => "Day 1",
+        StreakOutcome.Frozen => "Saved",
+        StreakOutcome.Broken => "Restarted",
+        _ => "Kept",
+    };
+
+    /// <summary>The four rating counts, with the same status colours used elsewhere.</summary>
+    private IEnumerable<(string Label, int Count, string Color)> Spread
+    {
+        get
+        {
+            yield return ("Again", Summary.Again, "var(--critical)");
+            yield return ("Hard", Summary.Hard, "var(--serious)");
+            yield return ("Good", Summary.Good, "var(--good)");
+            yield return ("Easy", Summary.Easy, "var(--info)");
+        }
+    }
+}
