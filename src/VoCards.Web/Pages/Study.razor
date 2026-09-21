@@ -101,7 +101,11 @@
                     break;
 
                 default:
-                    <FlashCard Question="question" Flipped="_flipped" OnFlipRequested="Flip" />
+                    @* Keyed so each question gets a fresh, unflipped card. Reusing one card
+                       would animate its 180° flip-back while already showing the next
+                       question, exposing that card's answer mid-rotation. *@
+                    <FlashCard @key="(question.Index, question.Card.Id)"
+                               Question="question" Flipped="_flipped" OnFlipRequested="Flip" />
                     break;
             }
         </div>
