@@ -372,11 +372,11 @@
 
         session.Grade(rating, verdict, typed);
 
-        await State.BlipAsync(rating == Rating.Again ? "wrong" : "correct");
-
         _flipped = false;
         _grade = null;
         _typed = string.Empty;
+
+        await State.BlipAsync(rating == Rating.Again ? "wrong" : "correct");
 
         if (session.IsFinished)
         {
