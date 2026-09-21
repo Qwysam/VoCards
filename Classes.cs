@@ -186,7 +186,6 @@ namespace VoCards
                             if (input == "Flip")
                             {
                                 Console.WriteLine("\nTranslation : " + inner_deck[i].Back + "\n");
-                                break;
                             }
                         }
                         cards_count -= 1;
