@@ -1,0 +1,634 @@
+@page "/study"
+@page "/study/{DeckId:guid}"
+@layout StudyLayout
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject ToastService Toasts
+@inject KeyboardService Keys
+@inject JsBridge Js
+@inject NavigationManager Nav
+
+<PageTitle>@(_session is null ? "Study" : $"{_session.Remaining} left") — VoCards</PageTitle>
+
+<div class="study-shell">
+    @* ============================================================ top bar *@
+    <header class="study-bar">
+        <button type="button" class="btn btn-ghost btn-icon" @onclick="LeaveAsync" aria-label="End the session">
+            <Icon Name="x" Size="18" />
+        </button>
+
+        @if (_session is { } session)
+        {
+            <div style="flex: 1; min-width: 0;">
+                <div class="bar bar-sm" role="progressbar"
+                     aria-valuenow="@((int)(session.Progress * 100))" aria-valuemin="0" aria-valuemax="100"
+                     aria-label="Session progress">
+                    <div class="bar-fill" style="width: @Format.Percent(session.Progress)"></div>
+                </div>
+            </div>
+
+            <span class="badge tnum">@session.Completed / @session.Total</span>
+
+            @if (session.Combo >= 3)
+            {
+                <span class="badge badge-accent" style="animation: pop-in var(--dur-base) var(--ease-spring);">
+                    <Icon Name="flame" Size="12" />
+                    @session.Combo
+                </span>
+            }
+
+            @if (_options.Cram)
+            {
+                <span class="badge badge-warning tip" data-tip="Cram does not change your schedule">
+                    <Icon Name="brain" Size="12" /> Cram
+                </span>
+            }
+        }
+    </header>
+
+    @* ============================================================== stage *@
+    @if (_summary is { } summary)
+    {
+        <SessionRecap Summary="summary" DeckName="@_deckName"
+                      OnAgain="RestartAsync" OnDone="GoHome" />
+    }
+    else if (_session is null)
+    {
+        <div class="study-stage">
+            <EmptyState Glyph="@(_error is null ? "⏳" : "🌤️")"
+                        Title="@(_error is null ? "Getting your cards" : "Nothing to study")"
+                        Description="@_error">
+                <Action>
+                    <div class="row-wrap" style="justify-content: center;">
+                        <a class="btn btn-outline" href="decks">Choose a deck</a>
+                        @if (_error is not null && !_options.Cram)
+                        {
+                            <button type="button" class="btn btn-primary" @onclick="CramAsync">
+                                <Icon Name="brain" Size="16" /> Cram instead
+                            </button>
+                        }
+                    </div>
+                </Action>
+            </EmptyState>
+        </div>
+    }
+    else if (_session.Current is { } question)
+    {
+        <div class="study-stage">
+            @switch (question.Mode)
+            {
+                case StudyMode.MultipleChoice:
+                case StudyMode.SpeedRound:
+                    <MultipleChoiceView Question="question" Grade="_grade"
+                                        OnChoose="ChooseAsync" OnContinue="ContinueAsync" />
+                    break;
+
+                case StudyMode.Typing:
+                    <TypingView Question="question" Grade="_grade" Typed="@_typed"
+                                OnTyped="v => _typed = v"
+                                OnSubmit="SubmitTypedAsync" OnContinue="ContinueAsync" />
+                    break;
+
+                case StudyMode.Listening:
+                    <ListeningView Question="question" Revealed="_flipped" OnReveal="Flip" />
+                    break;
+
+                case StudyMode.Match:
+                    <MatchView Cards="_batch" Direction="question.Direction"
+                               Seed="@(_batch.Count > 0 ? _batch[0].GetHashCode() : 0)"
+                               OnComplete="CompleteMatchAsync" />
+                    break;
+
+                default:
+                    <FlashCard Question="question" Flipped="_flipped" OnFlipRequested="Flip" />
+                    break;
+            }
+        </div>
+
+        @* ========================================================== footer *@
+        <footer class="study-foot">
+            <div class="study-foot-inner stack" style="gap: var(--space-3);">
+                @if (ShowRatingBar)
+                {
+                    <RatingBar Previews="_previews" OnGrade="GradeAsync" />
+                }
+                else if (question.Mode == StudyMode.Flip)
+                {
+                    <button type="button" class="btn btn-primary btn-lg btn-block" @onclick="Flip">
+                        Show the answer
+                        <kbd>Space</kbd>
+                    </button>
+                }
+
+                <div class="row" style="justify-content: center; gap: var(--space-1);">
+                    <button type="button" class="btn btn-ghost btn-sm tip" data-tip="Star (F)"
+                            @onclick="ToggleStar" aria-label="Star this card">
+                        <Icon Name="@(question.Card.IsStarred ? "star-filled" : "star")" Size="15" />
+                    </button>
+
+                    @if (State.SpeechAvailable)
+                    {
+                        <button type="button" class="btn btn-ghost btn-sm tip" data-tip="Speak (S)"
+                                @onclick="SpeakAsync" aria-label="Speak the prompt">
+                            <Icon Name="speaker" Size="15" />
+                        </button>
+                    }
+
+                    <button type="button" class="btn btn-ghost btn-sm tip" data-tip="Edit (E)"
+                            @onclick="() => _editing = question.Card" aria-label="Edit this card">
+                        <Icon Name="edit" Size="15" />
+                    </button>
+
+                    <button type="button" class="btn btn-ghost btn-sm tip" data-tip="Suspend (U)"
+                            @onclick="SuspendAsync" aria-label="Suspend this card">
+                        <Icon Name="pause" Size="15" />
+                    </button>
+
+                    <button type="button" class="btn btn-ghost btn-sm tip" data-tip="Skip (→)"
+                            @onclick="SkipAsync" aria-label="Skip this card">
+                        <Icon Name="skip" Size="15" />
+                    </button>
+                </div>
+            </div>
+        </footer>
+    }
+</div>
+
+@if (_editing is { } editing)
+{
+    <CardEditor Card="editing" OnSave="SaveCardAsync" OnCancel="() => _editing = null" />
+}
+
+@code {
+    [Parameter] public Guid? DeckId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "cram")] public string? CramFlag { get; set; }
+    [SupplyParameterFromQuery(Name = "mode")] public string? ModeFlag { get; set; }
+    [SupplyParameterFromQuery(Name = "dir")] public string? DirectionFlag { get; set; }
+    [SupplyParameterFromQuery(Name = "tag")] public string? TagFlag { get; set; }
+    [SupplyParameterFromQuery(Name = "starred")] public string? StarredFlag { get; set; }
+    [SupplyParameterFromQuery(Name = "leeches")] public string? LeechFlag { get; set; }
+
+    private StudySession? _session;
+    private SessionSummary? _summary;
+    private StudyOptions _options = new();
+    private string? _error;
+    private string _deckName = "Everything";
+
+    private bool _flipped;
+    private IReadOnlyList<Card> _batch = [];
+    private string _typed = string.Empty;
+    private GradedAnswer? _grade;
+    private IReadOnlyDictionary<Rating, string>? _previews;
+
+    private Card? _editing;
+
+    /// <summary>The rating bar appears once the answer is on screen.</summary>
+    private bool ShowRatingBar => _session?.Current switch
+    {
+        // Match grades a whole batch at once, so it never shows the rating bar.
+        { Mode: StudyMode.Match } => false,
+        { Mode: StudyMode.Flip or StudyMode.Listening } => _flipped,
+        { } => _grade is not null,
+        _ => false,
+    };
+
+    protected override void OnInitialized() => Keys.Push(this, HandleKey);
+
+    /// <summary>
+    /// Runs work started by a global key press and then re-renders.
+    ///
+    /// Key presses arrive through a [JSInvokable] on App, which is outside this
+    /// component's event dispatch, so Blazor does not re-render it automatically
+    /// the way it would after an @@onclick.
+    /// </summary>
+    private void Run(Func<Task> work) => _ = InvokeAsync(async () =>
+    {
+        await work();
+        StateHasChanged();
+    });
+
+    protected override void OnParametersSet() => Begin();
+
+    /// <summary>Builds the options from the query string and starts a session.</summary>
+    private void Begin()
+    {
+        _summary = null;
+        _grade = null;
+        _typed = string.Empty;
+        _flipped = false;
+
+        StudyMode mode = Enum.TryParse(ModeFlag, ignoreCase: true, out StudyMode parsedMode)
+            ? parsedMode
+            : StudyMode.Flip;
+
+        StudyDirection direction = Enum.TryParse(DirectionFlag, ignoreCase: true, out StudyDirection parsedDir)
+            ? parsedDir
+            : StudyDirection.FrontToBack;
+
+        Deck? deck = DeckId is { } id ? Store.Library.FindDeck(id) : null;
+
+        // A deck's own defaults apply unless the query string overrides them.
+        if (deck is not null && ModeFlag is null)
+        {
+            mode = deck.Settings.DefaultMode;
+        }
+
+        if (deck is not null && DirectionFlag is null)
+        {
+            direction = deck.Settings.Direction;
+        }
+
+        _options = new StudyOptions
+        {
+            Mode = mode,
+            Direction = direction,
+            Cram = CramFlag == "1",
+            Tag = TagFlag,
+            StarredOnly = StarredFlag == "1",
+            LeechesOnly = LeechFlag == "1",
+            Order = deck?.Settings.Order ?? QueueOrder.DueFirst,
+        };
+
+        var result = deck is not null
+            ? StudySession.Start(Store.Library, deck, _options, Store.Clock)
+            : StudySession.StartAcross(Store.Library, Store.Library.Decks, _options, Store.Clock);
+
+        _deckName = deck?.Name ?? "Everything";
+
+        if (result.IsFailure)
+        {
+            _session = null;
+            _error = result.Error;
+            return;
+        }
+
+        _error = null;
+        _session = result.Value;
+        RefreshPreviews();
+        RefreshBatch();
+    }
+
+    /// <summary>Match mode works on a batch; every other mode ignores this.</summary>
+    private void RefreshBatch() =>
+        _batch = _options.Mode == StudyMode.Match && _session is { } session
+            ? session.PeekBatch(MatchBatchSize)
+            : [];
+
+    private const int MatchBatchSize = 5;
+
+    /// <summary>
+    /// Grades a finished match round. The batch came back in queue order, so the
+    /// ratings can be applied with ordinary sequential Grade calls.
+    /// </summary>
+    private async Task CompleteMatchAsync(IReadOnlyDictionary<Guid, Rating> results)
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        foreach (Card card in _batch)
+        {
+            if (session.Current is null)
+            {
+                break;
+            }
+
+            Rating rating = results.GetValueOrDefault(card.Id, Rating.Again);
+            session.Grade(rating, rating == Rating.Again ? AnswerVerdict.Incorrect : AnswerVerdict.Correct);
+        }
+
+        await State.BlipAsync("correct");
+        Store.MarkChanged();
+
+        if (session.IsFinished)
+        {
+            await FinishAsync();
+            return;
+        }
+
+        RefreshPreviews();
+        RefreshBatch();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_session?.Current is { } question && question.Deck.Settings.AutoSpeak && !_flipped)
+        {
+            await State.SpeakAsync(question.Prompt, question.PromptLanguage);
+        }
+
+        if (firstRender)
+        {
+            await FocusTypingAsync();
+        }
+    }
+
+    private async Task FocusTypingAsync()
+    {
+        if (_session?.Current?.Mode == StudyMode.Typing && _grade is null)
+        {
+            await Js.FocusAsync("#typing-answer");
+        }
+    }
+
+    /// <summary>Recomputes the interval previews shown on the rating buttons.</summary>
+    private void RefreshPreviews()
+    {
+        if (_session?.Current is not { } question || _options.Cram)
+        {
+            _previews = null;
+            return;
+        }
+
+        _previews = CardReviewer.PreviewLabels(question.Card, question.Deck, Store.Now);
+    }
+
+    // ------------------------------------------------------------- actions
+
+    /// <summary>Reveals the answer in the two modes that hide it behind a flip.</summary>
+    private void Flip()
+    {
+        if (_session?.Current?.Mode is not (StudyMode.Flip or StudyMode.Listening))
+        {
+            return;
+        }
+
+        _flipped = true;
+        _session.Reveal();
+    }
+
+    private async Task GradeAsync(Rating rating)
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        AnswerVerdict verdict = _grade?.Verdict ?? AnswerVerdict.Correct;
+        string? typed = _grade is null ? null : _typed;
+
+        session.Grade(rating, verdict, typed);
+
+        await State.BlipAsync(rating == Rating.Again ? "wrong" : "correct");
+
+        _flipped = false;
+        _grade = null;
+        _typed = string.Empty;
+
+        if (session.IsFinished)
+        {
+            await FinishAsync();
+            return;
+        }
+
+        RefreshPreviews();
+        RefreshBatch();
+        Store.MarkChanged();
+        await FocusTypingAsync();
+    }
+
+    private async Task ChooseAsync(int index)
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        _grade = session.Choose(index);
+        await State.BlipAsync(_grade.IsAcceptable ? "correct" : "wrong");
+        RefreshPreviews();
+    }
+
+    private async Task SubmitTypedAsync()
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        _grade = session.SubmitTyped(_typed);
+        await State.BlipAsync(_grade.IsAcceptable ? "correct" : "wrong");
+        RefreshPreviews();
+    }
+
+    /// <summary>Accepts the grade the mode produced and moves to the next card.</summary>
+    private Task ContinueAsync() =>
+        _grade is { } grade ? GradeAsync(grade.ImpliedRating) : Task.CompletedTask;
+
+    private async Task SkipAsync()
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        session.Skip();
+        _flipped = false;
+        _grade = null;
+        _typed = string.Empty;
+
+        if (session.IsFinished)
+        {
+            await FinishAsync();
+            return;
+        }
+
+        RefreshPreviews();
+        RefreshBatch();
+        await FocusTypingAsync();
+    }
+
+    private async Task FinishAsync()
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        _summary = session.BuildSummary();
+        Store.MarkChanged();
+        await Store.SaveNowAsync();
+        await State.BlipAsync("done");
+
+        foreach (string id in _summary.UnlockedAchievements)
+        {
+            if (AchievementCatalog.Find(id) is { } achievement)
+            {
+                Toasts.Show($"{achievement.Emoji}  {achievement.Name} unlocked!", ToastKind.Good);
+            }
+        }
+
+        if (_summary.LevelsGained > 0)
+        {
+            Toasts.Success($"Level {Store.Profile.Level} reached!");
+            await State.BlipAsync("level");
+        }
+    }
+
+    private Task RestartAsync()
+    {
+        Begin();
+        return Task.CompletedTask;
+    }
+
+    private Task CramAsync()
+    {
+        string target = DeckId is { } id ? $"/study/{id}" : "/study";
+        Nav.NavigateTo($"{target}?cram=1", forceLoad: false);
+        return Task.CompletedTask;
+    }
+
+    private void GoHome() => Nav.NavigateTo(DeckId is { } id ? $"/decks/{id}" : "/");
+
+    /// <summary>Ends the session early, still banking whatever was graded.</summary>
+    private async Task LeaveAsync()
+    {
+        if (_session is { IsFinished: false } session && session.Completed > 0)
+        {
+            session.Finish();
+            await FinishAsync();
+            return;
+        }
+
+        GoHome();
+    }
+
+    private async Task SpeakAsync()
+    {
+        if (_session?.Current is { } question)
+        {
+            await State.SpeakAsync(question.Prompt, question.PromptLanguage);
+        }
+    }
+
+    private void ToggleStar()
+    {
+        if (_session?.Current is { } question)
+        {
+            question.Card.ToggleStar();
+            Store.MarkChanged();
+        }
+    }
+
+    private async Task SuspendAsync()
+    {
+        if (_session?.Current is not { } question)
+        {
+            return;
+        }
+
+        question.Card.Suspend();
+        Store.MarkChanged();
+        Toasts.Show($"Suspended “{question.Card.Front}”.");
+        await SkipAsync();
+    }
+
+    private Task SaveCardAsync(CardDraft draft)
+    {
+        if (_editing is not { } card)
+        {
+            return Task.CompletedTask;
+        }
+
+        card.Edit(draft.Front, draft.Back, draft.Example, draft.Notes, draft.Pronunciation);
+        card.SetTags(draft.Tags);
+        _editing = null;
+        Store.MarkChanged();
+        return Task.CompletedTask;
+    }
+
+    // ------------------------------------------------------------ keyboard
+
+    private bool HandleKey(KeyPress press)
+    {
+        if (_editing is not null)
+        {
+            return false; // the editor's own modal owns the keyboard
+        }
+
+        if (press.Is("Escape"))
+        {
+            Run(LeaveAsync);
+            return true;
+        }
+
+        if (_summary is not null)
+        {
+            return false;
+        }
+
+        if (_session?.Current is not { } question)
+        {
+            return false;
+        }
+
+        // Digits pick an option in choice modes, and a rating once graded.
+        if (press.IsDigit(out int digit) && digit >= 1)
+        {
+            bool choosing = question.Mode is StudyMode.MultipleChoice or StudyMode.SpeedRound
+                && _grade is null;
+
+            if (choosing && digit <= question.Choices.Count)
+            {
+                Run(() => ChooseAsync(digit - 1));
+                return true;
+            }
+
+            if (!choosing && ShowRatingBar && digit <= 4)
+            {
+                Run(() => GradeAsync((Rating)digit));
+                return true;
+            }
+
+            return false;
+        }
+
+        switch (press.Lower)
+        {
+            case " " when question.Mode is StudyMode.Flip or StudyMode.Listening:
+            case "enter" when question.Mode is StudyMode.Flip or StudyMode.Listening:
+                if (_flipped)
+                {
+                    Run(() => GradeAsync(Rating.Good));
+                }
+                else
+                {
+                    Run(() => { Flip(); return Task.CompletedTask; });
+                }
+
+                return true;
+
+            case "enter" when _grade is not null:
+                Run(ContinueAsync);
+                return true;
+
+            case "s":
+                Run(SpeakAsync);
+                return true;
+
+            case "f":
+                Run(() => { ToggleStar(); return Task.CompletedTask; });
+                return true;
+
+            case "e":
+                Run(() => { _editing = question.Card; return Task.CompletedTask; });
+                return true;
+
+            case "u":
+                Run(SuspendAsync);
+                return true;
+
+            case "arrowright":
+                Run(SkipAsync);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    public void Dispose() => Keys.Remove(this);
+}

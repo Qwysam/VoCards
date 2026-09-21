@@ -1,0 +1,46 @@
+@*
+    A year of study activity as a seven-row calendar grid.
+
+    Sequential encoding: one hue, light to dark, five steps where level 0 is the
+    empty cell. Intensity is scaled against the 90th-percentile day rather than
+    the maximum, so a single marathon session does not flatten the whole year.
+*@
+
+<div class="chart">
+    <div class="heatmap" role="img" aria-label="@AriaLabel">
+        @foreach (DailyActivity day in Days)
+        {
+            <div class="heat-cell tip"
+                 data-level="@day.Intensity(Threshold)"
+                 data-tip="@Tip(day)"
+                 tabindex="-1"></div>
+        }
+    </div>
+
+    <div class="heat-legend" style="margin-top: var(--space-3);">
+        <span>@Format.Count(Total) reviews in the last @Days.Count days</span>
+        <span class="spacer" style="flex: 1;"></span>
+        <span>Less</span>
+        @for (int level = 0; level <= 4; level++)
+        {
+            <span class="heat-cell" data-level="@level"></span>
+        }
+        <span>More</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<DailyActivity> Days { get; set; } = [];
+
+    /// <summary>Review count treated as a fully saturated day.</summary>
+    [Parameter] public int Threshold { get; set; } = 20;
+
+    private int Total => Days.Sum(d => d.Reviews);
+
+    private string AriaLabel =>
+        $"Study activity heatmap: {Format.Count(Total)} reviews across {Days.Count} days.";
+
+    private static string Tip(DailyActivity day) => day.Reviews == 0
+        ? $"{Format.LongDay(day.Day)} — no reviews"
+        : $"{Format.LongDay(day.Day)} — {day.Reviews} reviews, {Format.PercentLabel(day.Accuracy)} correct";
+}

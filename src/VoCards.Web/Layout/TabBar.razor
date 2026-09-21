@@ -1,0 +1,54 @@
+@implements IDisposable
+@inject LibraryStore Store
+
+@* Bottom navigation, mobile only. Mirrors the sidebar's primary destinations. *@
+<nav class="tabbar" aria-label="Main">
+    <NavLink href="" Match="NavLinkMatch.All">
+        <Icon Name="home" Size="20" />
+        <span>Home</span>
+        @if (_due > 0)
+        {
+            <span class="tab-dot" aria-hidden="true"></span>
+        }
+    </NavLink>
+
+    <NavLink href="decks">
+        <Icon Name="layers" Size="20" />
+        <span>Decks</span>
+    </NavLink>
+
+    <NavLink href="browse">
+        <Icon Name="search" Size="20" />
+        <span>Browse</span>
+    </NavLink>
+
+    <NavLink href="stats">
+        <Icon Name="chart" Size="20" />
+        <span>Stats</span>
+    </NavLink>
+
+    <NavLink href="settings">
+        <Icon Name="settings" Size="20" />
+        <span>Settings</span>
+    </NavLink>
+</nav>
+
+@code {
+    private int _due;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Refresh;
+        Read();
+    }
+
+    private void Read() => _due = Store.IsReady ? Store.Library.DueCount(Store.Now) : 0;
+
+    private void Refresh()
+    {
+        Read();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Store.Changed -= Refresh;
+}

@@ -1,0 +1,184 @@
+@*
+    Root component. Everything that has to exist regardless of route lives here:
+    the router, the global key listener, the toast host and the two overlays.
+*@
+@implements IAsyncDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject JsBridge Js
+@inject KeyboardService Keys
+@inject NavigationManager Nav
+
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <NotFoundView />
+        </LayoutView>
+    </NotFound>
+</Router>
+
+<ToastHost />
+
+@if (State.PaletteOpen)
+{
+    <CommandPalette />
+}
+
+@if (State.ShortcutsOpen)
+{
+    <ShortcutSheet />
+}
+
+@code {
+    private DotNetObjectReference<App>? _self;
+
+    // Tracks the "g" prefix of the two-key navigation chords (g then d, g then s).
+    private bool _awaitingGoto;
+    private CancellationTokenSource? _gotoTimeout;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += OnStateChanged;
+        Store.Changed += OnStateChanged;
+
+        await Store.InitializeAsync();
+        await State.ApplyThemeAsync();
+        await State.DetectCapabilitiesAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _self = DotNetObjectReference.Create(this);
+        await Js.RegisterKeysAsync(_self);
+
+        // Voices arrive asynchronously in most browsers, so ask again shortly.
+        await Task.Delay(600);
+        await State.RefreshVoicesAsync();
+    }
+
+    /// <summary>Entry point for every global key press, called from JavaScript.</summary>
+    [JSInvokable]
+    public async Task OnKey(KeyPress press)
+    {
+        // The command palette chord works everywhere, including inside a text field.
+        if (press.Ctrl && press.Lower == "k")
+        {
+            State.TogglePalette();
+            return;
+        }
+
+        if (press.Is("Escape"))
+        {
+            // Let a page-level handler (an open modal, a study session) claim it first.
+            if (!Keys.Dispatch(press))
+            {
+                State.CloseOverlays();
+            }
+
+            CancelGoto();
+            return;
+        }
+
+        if (press.FromField)
+        {
+            return;
+        }
+
+        // Two-key navigation chords: "g" then a destination.
+        if (_awaitingGoto)
+        {
+            CancelGoto();
+
+            string? target = press.Lower switch
+            {
+                "h" => "",
+                "d" => "decks",
+                "s" => "stats",
+                "b" => "browse",
+                "a" => "achievements",
+                "," => "settings",
+                _ => null,
+            };
+
+            if (target is not null)
+            {
+                State.Go($"/{target}");
+                return;
+            }
+        }
+
+        if (Keys.Dispatch(press))
+        {
+            return;
+        }
+
+        if (press.Lower == "g")
+        {
+            StartGoto();
+            return;
+        }
+
+        if (press.Key == "?")
+        {
+            State.ToggleShortcuts();
+            return;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private void StartGoto()
+    {
+        _awaitingGoto = true;
+        _gotoTimeout?.Cancel();
+        _gotoTimeout?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        _gotoTimeout = cts;
+
+        _ = ExpireGotoAsync(cts.Token);
+    }
+
+    private async Task ExpireGotoAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(1400, token);
+            _awaitingGoto = false;
+        }
+        catch (TaskCanceledException)
+        {
+            /* replaced by a newer chord */
+        }
+    }
+
+    private void CancelGoto()
+    {
+        _awaitingGoto = false;
+        _gotoTimeout?.Cancel();
+        _gotoTimeout?.Dispose();
+        _gotoTimeout = null;
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        State.Changed -= OnStateChanged;
+        Store.Changed -= OnStateChanged;
+
+        CancelGoto();
+
+        await Js.UnregisterKeysAsync();
+        _self?.Dispose();
+    }
+}

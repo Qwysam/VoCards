@@ -1,0 +1,100 @@
+@*
+    Listening mode. The prompt is deliberately not shown: the point is to
+    recognise the word by ear, so the text stays hidden until the card is
+    revealed. Where speech synthesis is unavailable the prompt is shown instead,
+    because a silent card with no text is unanswerable.
+*@
+@inject AppState State
+
+<div class="stack" style="width: 100%; gap: var(--space-6);">
+    <div class="flashcard-face" style="min-height: min(38dvh, 18rem);">
+        <p class="eyebrow">Listen</p>
+
+        @if (State.SpeechAvailable && !Revealed)
+        {
+            <button type="button" class="listen-button" @onclick="Speak" aria-label="Play the prompt">
+                <Icon Name="speaker" Size="42" />
+            </button>
+
+            <p class="card-hintline">
+                Tap to hear it again, then press <kbd>Space</kbd> to reveal
+            </p>
+        }
+        else
+        {
+            @if (!State.SpeechAvailable)
+            {
+                <p class="badge badge-warning">
+                    This browser has no speech synthesis, so the prompt is shown instead.
+                </p>
+            }
+
+            <p class="card-term">@Question.Prompt</p>
+
+            @if (Revealed)
+            {
+                <p class="card-answer" style="font-size: var(--text-xl);">@Question.Answer</p>
+
+                @if (Question.Card.Example is { Length: > 0 } example)
+                {
+                    <p class="card-example">&ldquo;@example&rdquo;</p>
+                }
+            }
+
+            @if (State.SpeechAvailable)
+            {
+                <button type="button" class="btn btn-ghost btn-icon" @onclick="Speak" aria-label="Play again">
+                    <Icon Name="speaker" Size="18" />
+                </button>
+            }
+        }
+    </div>
+
+    @if (!Revealed)
+    {
+        <button type="button" class="btn btn-primary btn-lg btn-block" @onclick="OnReveal">
+            Show the answer
+            <kbd>Space</kbd>
+        </button>
+    }
+</div>
+
+<style>
+    .listen-button {
+        display: grid;
+        place-items: center;
+        width: 6rem;
+        height: 6rem;
+        color: var(--accent-contrast);
+        border-radius: 50%;
+        background: var(--accent-600);
+        box-shadow: var(--shadow-accent);
+        transition: transform var(--dur-fast) var(--ease-spring);
+    }
+
+    .listen-button:hover { transform: scale(1.06); }
+
+    .listen-button:active { transform: scale(0.97); }
+</style>
+
+@code {
+    [Parameter, EditorRequired] public StudyQuestion Question { get; set; } = null!;
+
+    [Parameter] public bool Revealed { get; set; }
+
+    [Parameter] public EventCallback OnReveal { get; set; }
+
+    /// <summary>Speaks the prompt once when the card first appears.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Revealed && _spokenFor != Question.Card.Id)
+        {
+            _spokenFor = Question.Card.Id;
+            await Speak();
+        }
+    }
+
+    private Guid _spokenFor;
+
+    private Task Speak() => State.SpeakAsync(Question.Prompt, Question.PromptLanguage);
+}

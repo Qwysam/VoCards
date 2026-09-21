@@ -1,0 +1,248 @@
+@*
+    Match mode: a batch of prompts on the left, their answers shuffled on the
+    right, paired by tapping one of each.
+
+    The batch is the next N cards in queue order, so the page can grade the
+    results straight back through the session in that same order. A card paired
+    correctly first time is graded Good; one that took more than one attempt is
+    Hard; one never matched is Again.
+*@
+
+<div class="stack" style="width: 100%; gap: var(--space-5);">
+    <div class="row" style="justify-content: center; gap: var(--space-3);">
+        <span class="badge badge-accent">@_matched.Count / @Cards.Count matched</span>
+        @if (_attempts > 0)
+        {
+            <span class="badge">@_misses @(_misses == 1 ? "miss" : "misses")</span>
+        }
+    </div>
+
+    <div class="match-grid">
+        <div class="match-column">
+            @foreach (Card card in Cards)
+            {
+                <button type="button" class="match-tile"
+                        data-state="@TileState(card.Id, isPrompt: true)"
+                        disabled="@_matched.Contains(card.Id)"
+                        @onclick="() => PickPrompt(card.Id)">
+                    @card.PromptText(Direction)
+                </button>
+            }
+        </div>
+
+        <div class="match-column">
+            @foreach (Card card in _shuffled)
+            {
+                <button type="button" class="match-tile"
+                        data-state="@TileState(card.Id, isPrompt: false)"
+                        disabled="@_matched.Contains(card.Id)"
+                        @onclick="() => PickAnswer(card.Id)">
+                    @card.AnswerText(Direction)
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (_matched.Count == Cards.Count && Cards.Count > 0)
+    {
+        <button type="button" class="btn btn-primary btn-lg btn-block" @onclick="Finish">
+            All matched — continue
+            <kbd>↵</kbd>
+        </button>
+    }
+</div>
+
+<style>
+    .match-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-3);
+        width: 100%;
+    }
+
+    .match-column {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        min-width: 0;
+    }
+
+    .match-tile {
+        padding: var(--space-3) var(--space-4);
+        font-size: var(--text-sm);
+        font-weight: 550;
+        text-align: left;
+        overflow-wrap: anywhere;
+        background: var(--surface-1);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-md);
+        transition:
+            background var(--dur-fast) var(--ease-out),
+            border-color var(--dur-fast) var(--ease-out),
+            opacity var(--dur-base) var(--ease-out),
+            transform var(--dur-instant) var(--ease-out);
+    }
+
+    .match-tile:hover:not(:disabled) {
+        border-color: var(--accent-500);
+        transform: translateX(2px);
+    }
+
+    .match-tile[data-state="selected"] {
+        border-color: var(--accent-500);
+        background: color-mix(in oklab, var(--accent-500) 14%, transparent);
+    }
+
+    .match-tile[data-state="matched"] {
+        opacity: 0.4;
+        border-style: dashed;
+        border-color: var(--good);
+    }
+
+    .match-tile[data-state="wrong"] {
+        border-color: var(--critical);
+        background: var(--critical-soft);
+        animation: shake var(--dur-slow) var(--ease-out);
+    }
+</style>
+
+@code {
+    /// <summary>The batch to match, in queue order.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<Card> Cards { get; set; } = [];
+
+    [Parameter] public StudyDirection Direction { get; set; } = StudyDirection.FrontToBack;
+
+    /// <summary>Seed for the answer column's shuffle, so a re-render does not reshuffle.</summary>
+    [Parameter] public int Seed { get; set; }
+
+    /// <summary>
+    /// Reports the rating each card earned, keyed by card id, once every pair is
+    /// matched or the round is ended.
+    /// </summary>
+    [Parameter] public EventCallback<IReadOnlyDictionary<Guid, Rating>> OnComplete { get; set; }
+
+    private readonly HashSet<Guid> _matched = [];
+    private readonly Dictionary<Guid, int> _attemptsPerCard = [];
+
+    private IReadOnlyList<Card> _shuffled = [];
+    private Guid? _selectedPrompt;
+    private Guid? _wrongPrompt;
+    private Guid? _wrongAnswer;
+    private int _attempts;
+    private int _misses;
+    private Guid _batchKey;
+
+    protected override void OnParametersSet()
+    {
+        // Reshuffle only when the batch itself changes, never on a re-render.
+        Guid key = Cards.Count == 0 ? Guid.Empty : Cards[0].Id;
+
+        if (key == _batchKey && _shuffled.Count == Cards.Count)
+        {
+            return;
+        }
+
+        _batchKey = key;
+        _matched.Clear();
+        _attemptsPerCard.Clear();
+        _selectedPrompt = null;
+        _wrongPrompt = null;
+        _wrongAnswer = null;
+        _attempts = 0;
+        _misses = 0;
+
+        var random = new Random(Seed == 0 ? Cards.Count : Seed);
+        _shuffled = Cards.OrderBy(_ => random.Next()).ToArray();
+    }
+
+    private string? TileState(Guid cardId, bool isPrompt)
+    {
+        if (_matched.Contains(cardId))
+        {
+            return "matched";
+        }
+
+        if (isPrompt && _wrongPrompt == cardId)
+        {
+            return "wrong";
+        }
+
+        if (!isPrompt && _wrongAnswer == cardId)
+        {
+            return "wrong";
+        }
+
+        return isPrompt && _selectedPrompt == cardId ? "selected" : null;
+    }
+
+    private void PickPrompt(Guid cardId)
+    {
+        ClearWrong();
+        _selectedPrompt = _selectedPrompt == cardId ? null : cardId;
+    }
+
+    private async Task PickAnswer(Guid cardId)
+    {
+        if (_selectedPrompt is not { } prompt)
+        {
+            return;
+        }
+
+        ClearWrong();
+        _attempts++;
+        Bump(prompt);
+
+        if (prompt == cardId)
+        {
+            _matched.Add(cardId);
+            _selectedPrompt = null;
+
+            if (_matched.Count == Cards.Count)
+            {
+                await Task.Delay(280);
+                await Finish();
+            }
+
+            return;
+        }
+
+        // A wrong pairing counts against the prompt that was selected.
+        _misses++;
+        _wrongPrompt = prompt;
+        _wrongAnswer = cardId;
+        _selectedPrompt = null;
+
+        await Task.Delay(520);
+        ClearWrong();
+        StateHasChanged();
+    }
+
+    private void Bump(Guid cardId) =>
+        _attemptsPerCard[cardId] = _attemptsPerCard.GetValueOrDefault(cardId) + 1;
+
+    private void ClearWrong()
+    {
+        _wrongPrompt = null;
+        _wrongAnswer = null;
+    }
+
+    /// <summary>
+    /// Grades the round: first-time-right is Good, more than one attempt is Hard,
+    /// and anything never matched is Again.
+    /// </summary>
+    private Task Finish()
+    {
+        var results = new Dictionary<Guid, Rating>(Cards.Count);
+
+        foreach (Card card in Cards)
+        {
+            results[card.Id] = !_matched.Contains(card.Id)
+                ? Rating.Again
+                : _attemptsPerCard.GetValueOrDefault(card.Id) <= 1
+                    ? Rating.Good
+                    : Rating.Hard;
+        }
+
+        return OnComplete.InvokeAsync(results);
+    }
+}
