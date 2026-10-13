@@ -1,0 +1,831 @@
+/* ============================================================================
+   Feature styles: the flashcard, the charts, the trophy wall, the palette.
+   ========================================================================= */
+
+/* ============================================================= stat tiles */
+/* A stat tile is the right form for a single headline number - no plot. */
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-4) var(--space-5);
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+}
+
+.stat-label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-2xs);
+    font-weight: 700;
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.stat-value {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: var(--tracking-tight);
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-meta {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.stat-accent .stat-value { color: var(--accent-600); }
+.stat-good .stat-value { color: var(--good); }
+.stat-warning .stat-value { color: var(--warning); }
+
+:root[data-theme="dark"] .stat-accent .stat-value { color: var(--accent-300); }
+
+@media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .stat-accent .stat-value { color: var(--accent-300); }
+}
+
+/* --- hero number on the dashboard --- */
+
+.hero {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+    padding: var(--space-6);
+    border-radius: var(--radius-2xl);
+    background:
+        radial-gradient(120% 140% at 0% 0%,
+            color-mix(in oklab, var(--accent-500) 18%, transparent) 0%,
+            transparent 58%),
+        var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-sm);
+}
+
+.hero-number {
+    font-family: var(--font-display);
+    font-size: var(--text-4xl);
+    font-weight: 750;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+}
+
+.hero-copy {
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+/* ========================================================== progress ring */
+
+.ring {
+    display: grid;
+    place-items: center;
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.ring svg {
+    transform: rotate(-90deg);
+    overflow: visible;
+}
+
+.ring-track {
+    fill: none;
+    stroke: var(--surface-3);
+}
+
+.ring-fill {
+    fill: none;
+    stroke: var(--accent-500);
+    stroke-linecap: round;
+    transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+}
+
+.ring-label {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+
+.ring-label strong {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    font-variant-numeric: tabular-nums;
+}
+
+.ring-label small {
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+}
+
+/* ============================================================== deck card */
+
+.deck-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition:
+        transform var(--dur-base) var(--ease-out),
+        box-shadow var(--dur-base) var(--ease-out),
+        border-color var(--dur-base) var(--ease-out);
+}
+
+.deck-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--deck, var(--accent-500));
+}
+
+.deck-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--border-default);
+}
+
+.deck-glyph {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex: 0 0 auto;
+    font-size: 1.375rem;
+    border-radius: var(--radius-md);
+    background: var(--deck-soft, var(--surface-2));
+}
+
+.deck-name {
+    font-family: var(--font-display);
+    font-size: var(--text-base);
+    font-weight: 650;
+    line-height: var(--leading-snug);
+}
+
+.deck-desc {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: var(--leading-snug);
+}
+
+.deck-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: auto;
+    padding-top: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.deck-pin {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.deck-card:hover .deck-pin,
+.deck-pin[data-pinned="true"] {
+    opacity: 1;
+}
+
+/* =========================================================== the flashcard */
+
+.flashcard {
+    width: 100%;
+    perspective: 1600px;
+}
+
+.flashcard-inner {
+    position: relative;
+    display: grid;
+    min-height: min(46dvh, 22rem);
+    transform-style: preserve-3d;
+    transition: transform var(--dur-flip) var(--ease-in-out);
+    cursor: pointer;
+}
+
+.flashcard[data-flipped="true"] .flashcard-inner {
+    transform: rotateY(180deg);
+}
+
+/* With animation off, the faces cross-fade instead of rotating. */
+.flashcard[data-animate="false"] .flashcard-inner {
+    transform: none !important;
+    transition: none;
+}
+
+/* A new card eases in rather than popping into place. */
+.flashcard[data-animate="true"] {
+    animation: card-enter var(--dur-fast) var(--ease-out) backwards;
+}
+
+/* Grading turns the card back to its face quickly, then sweeps it aside once the
+   turn has finished (hence the delay). The card is removed by Study.razor after
+   both steps, so `forwards` only has to hold the last frame until then. */
+.flashcard[data-leaving="true"] {
+    animation: card-sweep-out var(--dur-sweep) var(--ease-in) var(--dur-flip-back) forwards;
+    pointer-events: none;
+}
+
+.flashcard[data-leaving="true"] .flashcard-inner {
+    transition-duration: var(--dur-flip-back);
+}
+
+@keyframes card-enter {
+    from { opacity: 0; transform: translateX(28px) scale(0.96); }
+}
+
+@keyframes card-sweep-out {
+    to { opacity: 0; transform: translateX(-38%) rotate(-8deg) scale(0.94); }
+}
+
+.flashcard-face {
+    grid-area: 1 / 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    padding: var(--space-8) var(--space-6);
+    text-align: center;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-md);
+    backface-visibility: hidden;
+}
+
+.flashcard-back {
+    transform: rotateY(180deg);
+    background:
+        radial-gradient(120% 120% at 50% 0%,
+            color-mix(in oklab, var(--accent-500) 12%, transparent) 0%,
+            transparent 60%),
+        var(--surface-1);
+}
+
+.flashcard[data-animate="false"] .flashcard-back {
+    transform: none;
+    backface-visibility: visible;
+}
+
+.flashcard[data-animate="false"][data-flipped="false"] .flashcard-back,
+.flashcard[data-animate="false"][data-flipped="true"] .flashcard-front {
+    visibility: hidden;
+}
+
+.card-term {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    line-height: var(--leading-tight);
+    letter-spacing: var(--tracking-tight);
+    text-wrap: balance;
+}
+
+.card-answer {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-weight: 650;
+    color: var(--accent-700);
+    text-wrap: balance;
+}
+
+:root[data-theme="dark"] .card-answer { color: var(--accent-300); }
+
+@media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .card-answer { color: var(--accent-300); }
+}
+
+.card-example {
+    max-width: 42ch;
+    font-size: var(--text-sm);
+    font-style: italic;
+    color: var(--text-secondary);
+    line-height: var(--leading-snug);
+}
+
+.card-notes {
+    max-width: 42ch;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+}
+
+.card-hintline {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+/* ============================================================= rating bar */
+
+.rating-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-2);
+}
+
+.rating-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: var(--space-3) var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: 650;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--surface-1);
+    transition:
+        background var(--dur-fast) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out),
+        transform var(--dur-instant) var(--ease-out);
+}
+
+.rating-btn:hover {
+    transform: translateY(-2px);
+}
+
+.rating-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.rating-btn small {
+    font-size: var(--text-2xs);
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.rating-again { color: var(--critical); border-color: color-mix(in oklab, var(--critical) 30%, transparent); }
+.rating-again:hover { background: var(--critical-soft); }
+.rating-hard { color: var(--serious); border-color: color-mix(in oklab, var(--serious) 30%, transparent); }
+.rating-hard:hover { background: var(--serious-soft); }
+.rating-good { color: var(--good); border-color: color-mix(in oklab, var(--good) 30%, transparent); }
+.rating-good:hover { background: var(--good-soft); }
+.rating-easy { color: var(--info); border-color: color-mix(in oklab, var(--info) 30%, transparent); }
+.rating-easy:hover { background: var(--info-soft); }
+
+/* ====================================================== choice / typing ui */
+
+.choices {
+    display: grid;
+    gap: var(--space-2);
+    width: 100%;
+}
+
+.choice {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    font-size: var(--text-base);
+    text-align: left;
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    transition:
+        background var(--dur-fast) var(--ease-out),
+        border-color var(--dur-fast) var(--ease-out),
+        transform var(--dur-instant) var(--ease-out);
+}
+
+.choice:hover:not(:disabled) {
+    border-color: var(--accent-500);
+    background: var(--surface-2);
+}
+
+.choice:active:not(:disabled) {
+    transform: scale(0.99);
+}
+
+.choice-key {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+}
+
+.choice[data-result="correct"] {
+    border-color: var(--good);
+    background: var(--good-soft);
+}
+
+.choice[data-result="wrong"] {
+    border-color: var(--critical);
+    background: var(--critical-soft);
+    animation: shake var(--dur-slow) var(--ease-out);
+}
+
+.typing-input {
+    width: 100%;
+    padding: var(--space-4) var(--space-5);
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    text-align: center;
+    background: var(--surface-1);
+    border: 2px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.typing-input:focus {
+    outline: none;
+    border-color: var(--accent-500);
+    box-shadow: var(--ring);
+}
+
+.typing-input[data-result="correct"] { border-color: var(--good); }
+.typing-input[data-result="almost"] { border-color: var(--warning); }
+.typing-input[data-result="wrong"] { border-color: var(--critical); }
+
+/* Character-level diff of what was typed. */
+.diff {
+    display: inline-flex;
+    flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-lg);
+    letter-spacing: 0.02em;
+}
+
+.diff-match { color: var(--good); }
+.diff-wrong { color: var(--critical); text-decoration: line-through; }
+.diff-extra { color: var(--serious); text-decoration: line-through; }
+.diff-missing {
+    color: var(--info);
+    border-bottom: 2px solid currentColor;
+}
+
+/* ================================================================ heatmap */
+
+/* A year of cells is wider than a phone. width: max-content sizes the grid to
+   its content and max-width caps it at the container, so overflow-x: auto gives
+   it its own scrollbar instead of stretching the page. */
+.heatmap {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(7, 1fr);
+    gap: 3px;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: var(--space-2);
+}
+
+.heat-cell {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    background: var(--heat-0);
+    transition: transform var(--dur-instant) var(--ease-out);
+}
+
+.heat-cell:hover {
+    transform: scale(1.4);
+    outline: 1px solid var(--border-strong);
+}
+
+.heat-cell[data-level="1"] { background: var(--heat-1); }
+.heat-cell[data-level="2"] { background: var(--heat-2); }
+.heat-cell[data-level="3"] { background: var(--heat-3); }
+.heat-cell[data-level="4"] { background: var(--heat-4); }
+
+.heat-legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+}
+
+.heat-legend .heat-cell:hover {
+    transform: none;
+    outline: none;
+}
+
+/* ================================================================== charts */
+
+.chart {
+    width: 100%;
+    min-width: 0;
+}
+
+.chart svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.axis-line {
+    stroke: var(--border-default);
+    stroke-width: 1;
+}
+
+.grid-line {
+    stroke: var(--border-subtle);
+    stroke-width: 1;
+}
+
+.axis-text {
+    fill: var(--text-muted);
+    font-size: 10px;
+    font-family: var(--font-sans);
+}
+
+/* 4px rounded data-ends anchored to the baseline. */
+.bar-mark {
+    transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.bar-mark:hover {
+    opacity: 0.82;
+}
+
+.line-mark {
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.dot-mark {
+    stroke: var(--surface-1);
+    stroke-width: 2;
+}
+
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.legend-swatch {
+    width: 10px;
+    height: 10px;
+    flex: 0 0 auto;
+    border-radius: 3px;
+}
+
+/* --- donut --- */
+
+.donut-wrap {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-6);
+}
+
+.donut-center {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    line-height: 1.1;
+}
+
+.donut-holder {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+/* A donut segment IS its stroke, so this rule must not set stroke or
+   stroke-width - CSS beats SVG presentation attributes, and doing so repainted
+   every segment in the surface colour at 2px, making the chart invisible.
+   The 2px gap between segments comes from shortening each arc instead. */
+.donut-seg {
+    transition: opacity var(--dur-fast) var(--ease-out);
+}
+
+.donut-seg:hover {
+    opacity: 0.82;
+}
+
+/* ============================================================== trophies */
+
+.trophy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-5) var(--space-3);
+    text-align: center;
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    transition: transform var(--dur-base) var(--ease-out);
+}
+
+.trophy:hover {
+    transform: translateY(-3px);
+}
+
+.trophy[data-locked="true"] {
+    background: var(--surface-2);
+}
+
+.trophy[data-locked="true"] .trophy-glyph {
+    filter: grayscale(1);
+    opacity: 0.4;
+}
+
+.trophy-glyph {
+    display: grid;
+    place-items: center;
+    width: 3.25rem;
+    height: 3.25rem;
+    font-size: 1.625rem;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 2px solid var(--tier, var(--border-default));
+}
+
+.trophy-name {
+    font-size: var(--text-sm);
+    font-weight: 650;
+}
+
+.trophy-desc {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    line-height: var(--leading-snug);
+}
+
+[data-tier="Bronze"] { --tier: #a9743f; }
+[data-tier="Silver"] { --tier: #9aa3ad; }
+[data-tier="Gold"] { --tier: #d0a020; }
+[data-tier="Platinum"] { --tier: #58c0c6; }
+
+/* ========================================================= command palette */
+
+.palette-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-palette);
+    display: flex;
+    justify-content: center;
+    padding: clamp(3rem, 12vh, 8rem) var(--gutter) var(--gutter);
+    background: var(--surface-scrim);
+    backdrop-filter: blur(6px);
+    animation: fade-in var(--dur-fast) var(--ease-out);
+}
+
+.palette {
+    width: min(38rem, 100%);
+    max-height: 60dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+    animation: pop-in var(--dur-base) var(--ease-spring);
+}
+
+.palette-input {
+    width: 100%;
+    padding: var(--space-4) var(--space-5);
+    font-size: var(--text-lg);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.palette-input:focus {
+    outline: none;
+}
+
+.palette-list {
+    overflow-y: auto;
+    padding: var(--space-2);
+}
+
+.palette-group {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+}
+
+.palette-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3);
+    font-size: var(--text-sm);
+    text-align: left;
+    border-radius: var(--radius-md);
+    transition: background var(--dur-instant) var(--ease-out);
+}
+
+.palette-item[data-active="true"] {
+    background: color-mix(in oklab, var(--accent-500) 14%, transparent);
+}
+
+.palette-item .icon {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+}
+
+.palette-foot {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-2xs);
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border-top: 1px solid var(--border-subtle);
+}
+
+/* ============================================================= swatches */
+
+.swatch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.swatch {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-md);
+    border: 2px solid transparent;
+    background: var(--swatch);
+    transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+.swatch:hover {
+    transform: scale(1.1);
+}
+
+.swatch[aria-pressed="true"] {
+    border-color: var(--text-primary);
+    outline: 2px solid var(--surface-1);
+    outline-offset: -4px;
+}
+
+/* ======================================================== session summary */
+
+.summary-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-8) var(--space-6);
+    text-align: center;
+}
+
+.summary-grade {
+    font-family: var(--font-display);
+    font-size: var(--text-4xl);
+    font-weight: 750;
+    letter-spacing: -0.04em;
+}
+
+.confetti-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    animation: pulse-ring 1.2s var(--ease-out) forwards;
+}

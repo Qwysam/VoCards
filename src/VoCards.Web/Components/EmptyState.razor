@@ -1,0 +1,24 @@
+@* A consistent nothing-here block: glyph, headline, explanation, one action. *@
+
+<div class="empty">
+    <div class="empty-glyph">@Glyph</div>
+    <h3>@Title</h3>
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <p>@Description</p>
+    }
+    @if (Action is not null)
+    {
+        <div style="margin-top: var(--space-2);">@Action</div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Glyph { get; set; } = "📭";
+
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    [Parameter] public string? Description { get; set; }
+
+    [Parameter] public RenderFragment? Action { get; set; }
+}

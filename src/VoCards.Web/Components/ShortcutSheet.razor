@@ -1,0 +1,69 @@
+@* The "?" reference sheet. Reads its content from KeyboardService, so the sheet
+   and the actual bindings cannot drift apart silently. *@
+@inject AppState State
+
+<Modal Title="Keyboard shortcuts" Wide="true" OnClose="State.CloseOverlays">
+    <ChildContent>
+        <div class="grid grid-2">
+            @foreach (ShortcutGroup group in KeyboardService.Reference)
+            {
+                <section>
+                    <p class="eyebrow" style="margin-bottom: var(--space-3);">@group.Title</p>
+
+                    <dl class="shortcut-list">
+                        @foreach (Shortcut shortcut in group.Shortcuts)
+                        {
+                            <div class="shortcut-row">
+                                <dt>
+                                    @foreach (string key in shortcut.Keys.Split(' '))
+                                    {
+                                        @if (key is "+" or "then" or "/")
+                                        {
+                                            <span class="muted" style="font-size: var(--text-2xs);">@key</span>
+                                        }
+                                        else
+                                        {
+                                            <kbd>@key</kbd>
+                                        }
+                                    }
+                                </dt>
+                                <dd class="secondary">@shortcut.Description</dd>
+                            </div>
+                        }
+                    </dl>
+                </section>
+            }
+        </div>
+    </ChildContent>
+</Modal>
+
+<style>
+    .shortcut-list {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .shortcut-row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) 0;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .shortcut-row:last-child { border-bottom: none; }
+
+    .shortcut-row dt {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        flex: 0 0 auto;
+        min-width: 7.5rem;
+    }
+
+    .shortcut-row dd {
+        margin: 0;
+        font-size: var(--text-sm);
+    }
+</style>

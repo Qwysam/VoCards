@@ -1,0 +1,259 @@
+@page "/"
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject NavigationManager Nav
+
+<PageTitle>VoCards</PageTitle>
+
+@if (!Store.IsReady)
+{
+    <LoadingView />
+}
+else
+{
+    <div class="page-head">
+        <div>
+            <p class="eyebrow">@Greeting</p>
+            <h1>@Headline</h1>
+        </div>
+
+        <div class="page-actions">
+            <a class="btn btn-outline" href="decks">
+                <Icon Name="layers" Size="16" />
+                Decks
+            </a>
+            <button type="button" class="btn btn-primary" @onclick="() => _launching = true"
+                    disabled="@(_stats.DueNow == 0)">
+                <Icon Name="play" Size="16" />
+                Study now
+            </button>
+        </div>
+    </div>
+
+    @* ------------------------------------------------------------- hero -- *@
+    <section class="hero animate-rise">
+        <RingProgress Value="@_stats.GoalProgress" Size="124" Thickness="11"
+                      Color="@(_stats.GoalMet ? "var(--good)" : "var(--accent-500)")"
+                      Label="Daily goal">
+            <strong>@_stats.ReviewsToday</strong>
+            <small>of @_stats.DayGoal</small>
+        </RingProgress>
+
+        <div class="hero-copy">
+            <p class="eyebrow">Waiting for you</p>
+            <p class="hero-number">@Format.Count(_stats.DueNow)</p>
+            <p class="secondary" style="margin-top: var(--space-2);">
+                @DueSentence
+            </p>
+
+            <div class="row-wrap" style="margin-top: var(--space-4);">
+                <span class="badge badge-accent">
+                    <Icon Name="flame" Size="12" />
+                    @_stats.CurrentStreak day streak
+                </span>
+
+                <span class="badge">
+                    <Icon Name="zap" Size="12" />
+                    Level @Store.Profile.Level
+                </span>
+
+                @if (_stats.ReviewsToday > 0)
+                {
+                    <span class="badge badge-good">
+                        <Icon Name="target" Size="12" />
+                        @Format.PercentLabel(_stats.AccuracyToday) today
+                    </span>
+                }
+
+                @if (Store.Profile.StreakFreezes > 0)
+                {
+                    <span class="badge badge-info tip"
+                          data-tip="Covers one missed day automatically">
+                        🧊 @Store.Profile.StreakFreezes freeze@(Store.Profile.StreakFreezes == 1 ? "" : "s")
+                    </span>
+                }
+            </div>
+        </div>
+    </section>
+
+    @* ------------------------------------------------------------ tiles -- *@
+    <section class="grid grid-stats stagger" style="margin-top: var(--space-5);">
+        <StatTile Label="Cards" Value="@Format.Count(_stats.TotalCards)" Icon="cards"
+                  Meta="@($"across {Store.Library.DeckCount} decks")" />
+
+        <StatTile Label="Mastered" Value="@Format.Count(_stats.States.Mature)" Icon="check" Tone="good"
+                  Meta="@($"{Format.PercentLabel(_stats.OverallMastery)} overall mastery")"
+                  Progress="@_stats.OverallMastery" />
+
+        <StatTile Label="Retention" Value="@Format.PercentLabel(_stats.LifetimeRetention)" Icon="target"
+                  Tone="accent" Meta="lifetime recall rate" />
+
+        <StatTile Label="Time studied" Value="@Format.Duration(_stats.TimeStudiedToday)" Icon="clock"
+                  Meta="@($"{Format.Duration(_stats.TimeStudiedAllTime)} all time")" />
+    </section>
+
+    @* ---------------------------------------------------- decks with work *@
+    <section class="section">
+        <div class="section-head">
+            <h2>Ready to study</h2>
+            <span class="spacer"></span>
+            <a class="btn btn-ghost btn-sm" href="decks">
+                All decks
+                <Icon Name="chevron-right" Size="14" />
+            </a>
+        </div>
+
+        @if (_withWork.Count == 0)
+        {
+            <div class="panel">
+                <EmptyState Glyph="🎉"
+                            Title="Nothing is due right now"
+                            Description="@NextDueSentence">
+                    <Action>
+                        <div class="row" style="justify-content: center;">
+                            <a class="btn btn-outline" href="decks">Browse decks</a>
+                            <a class="btn btn-primary" href="study?cram=1">
+                                <Icon Name="brain" Size="16" />
+                                Cram anyway
+                            </a>
+                        </div>
+                    </Action>
+                </EmptyState>
+            </div>
+        }
+        else
+        {
+            <div class="grid grid-decks stagger">
+                @foreach (Deck deck in _withWork)
+                {
+                    <DeckCard Deck="deck" Changed="Reload" @key="deck.Id" />
+                }
+            </div>
+        }
+    </section>
+
+    @* --------------------------------------------------------- activity -- *@
+    <section class="section">
+        <div class="section-head">
+            <h2>Your last year</h2>
+            <span class="spacer"></span>
+            <a class="btn btn-ghost btn-sm" href="stats">
+                Full statistics
+                <Icon Name="chevron-right" Size="14" />
+            </a>
+        </div>
+
+        <div class="panel panel-body">
+            <ActivityHeatmap Days="_activity" Threshold="_threshold" />
+        </div>
+    </section>
+
+    @* ------------------------------------------------------ what's next -- *@
+    @if (_forecast.Any(f => f.Due > 0))
+    {
+        <section class="section">
+            <div class="section-head">
+                <h2>Coming up</h2>
+            </div>
+
+            <div class="panel panel-body">
+                <BarChart Points="_forecast" />
+            </div>
+        </section>
+    }
+}
+
+@if (_launching)
+{
+    <StudyLauncher DeckName="everything" DueCount="_stats.DueNow" Tags="Store.Library.AllTags"
+                   OnStart="Go" OnCancel="() => _launching = false" />
+}
+
+@code {
+    private bool _launching;
+    private LibraryStats _stats = Empty();
+    private IReadOnlyList<Deck> _withWork = [];
+    private IReadOnlyList<DailyActivity> _activity = [];
+    private IReadOnlyList<ForecastDay> _forecast = [];
+    private int _threshold = 20;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Reload;
+        Reload();
+    }
+
+    private void Reload()
+    {
+        if (!Store.IsReady)
+        {
+            return;
+        }
+
+        DateTimeOffset now = Store.Now;
+
+        _stats = StatsService.Summarize(Store.Library, now);
+        _withWork = Store.Library.DecksWithWork(now).Take(6).ToArray();
+        _activity = StatsService.Activity(Store.Library, now, days: 364);
+        _threshold = Math.Max(StatsService.BusyDayThreshold(_activity), Store.Profile.DailyGoal);
+        _forecast = StatsService.Forecast(Store.Library, now, days: 21);
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void Go(string url)
+    {
+        _launching = false;
+        Nav.NavigateTo(url);
+    }
+
+    // Written with >= rather than < because Razor parses a leading "<" inside a
+    // switch expression as the start of a markup tag.
+    private string Greeting => Store.Now.LocalDateTime.Hour switch
+    {
+        >= 18 => "Good evening",
+        >= 12 => "Good afternoon",
+        >= 5 => "Good morning",
+        _ => "Still up",
+    };
+
+    private string Headline => _stats.DueNow switch
+    {
+        0 when _stats.TotalCards == 0 => "Let's build your first deck",
+        0 => "You're all caught up",
+        1 => "One card is waiting",
+        _ => $"{_stats.DueNow} cards are waiting",
+    };
+
+    private string DueSentence => _stats.DueNow switch
+    {
+        0 => "Nothing is due. Come back later, or cram a deck ahead of schedule.",
+        _ when _stats.GoalMet => "cards due — and you have already hit today's goal.",
+        _ => $"cards due. {Math.Max(0, _stats.DayGoal - _stats.ReviewsToday)} more reviews reaches today's goal.",
+    };
+
+    private string NextDueSentence => Store.Library.NextDueAt(Store.Now) is { } next
+        ? $"The next card comes back {Format.Relative(next, Store.Now)}."
+        : "Add some cards, or study a deck ahead of schedule with cram mode.";
+
+    private static LibraryStats Empty() => new()
+    {
+        TotalCards = 0,
+        DueNow = 0,
+        DueToday = 0,
+        States = new StateBreakdown(),
+        OverallMastery = 0,
+        ReviewsToday = 0,
+        CorrectToday = 0,
+        CurrentStreak = 0,
+        LongestStreak = 0,
+        LifetimeRetention = 0,
+        TimeStudiedToday = TimeSpan.Zero,
+        TimeStudiedAllTime = TimeSpan.Zero,
+        ReviewsThisWeek = 0,
+        DayGoal = 30,
+    };
+
+    public void Dispose() => Store.Changed -= Reload;
+}

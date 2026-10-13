@@ -1,0 +1,172 @@
+@* Create or edit a deck: name, description, glyph, colour and language pair. *@
+
+<Modal Title="@(IsNew ? "New deck" : "Deck settings")" OnClose="OnCancel">
+    <ChildContent>
+        <div class="stack">
+            <div class="row" style="gap: var(--space-4); align-items: flex-end;">
+                <div class="field" style="flex: 0 0 auto;">
+                    <span class="label">Glyph</span>
+                    <button type="button" class="deck-glyph" data-deck="@_color"
+                            style="width: 3rem; height: 3rem; border: 1px solid var(--border-default); cursor: pointer;"
+                            @onclick="NextEmoji" title="Click for another">
+                        @_emoji
+                    </button>
+                </div>
+
+                <div class="field" style="flex: 1;">
+                    <label class="label" for="deck-name">Name</label>
+                    <input id="deck-name" class="input" @bind="_name" @bind:event="oninput"
+                           placeholder="e.g. Kitchen Spanish" autocomplete="off" />
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="label" for="deck-desc">Description <span class="muted">(optional)</span></label>
+                <input id="deck-desc" class="input" @bind="_description"
+                       placeholder="What is this deck for?" />
+            </div>
+
+            <div class="field">
+                <span class="label">Colour</span>
+                <div class="swatch-row">
+                    @foreach (string token in Colors)
+                    {
+                        <button type="button" class="swatch" data-deck="@token"
+                                style="--swatch: var(--deck);"
+                                aria-pressed="@((_color == token).ToString().ToLowerInvariant())"
+                                aria-label="@token" @onclick="() => _color = token"></button>
+                    }
+                </div>
+            </div>
+
+            <div class="grid grid-2" style="gap: var(--space-4);">
+                <div class="field">
+                    <label class="label" for="deck-front-lang">Front language</label>
+                    <select id="deck-front-lang" class="select" @bind="_frontLanguage">
+                        @foreach ((string tag, string label) in Languages)
+                        {
+                            <option value="@tag">@label</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="deck-back-lang">Back language</label>
+                    <select id="deck-back-lang" class="select" @bind="_backLanguage">
+                        @foreach ((string tag, string label) in Languages)
+                        {
+                            <option value="@tag">@label</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <p class="hint">
+                The language pair picks which speech-synthesis voice reads each face aloud.
+            </p>
+
+            @if (_error is { Length: > 0 })
+            {
+                <p class="badge badge-critical" role="alert">@_error</p>
+            }
+        </div>
+    </ChildContent>
+
+    <Footer>
+        <button type="button" class="btn" @onclick="OnCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" @onclick="SaveAsync">
+            @(IsNew ? "Create deck" : "Save")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public Deck? Deck { get; set; }
+
+    [Parameter] public EventCallback<DeckDraft> OnSave { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _emoji = "📚";
+    private string _color = "violet";
+    private string _frontLanguage = "en-US";
+    private string _backLanguage = "es-ES";
+    private string? _error;
+    private int _emojiIndex;
+
+    private bool IsNew => Deck is null;
+
+    /// <summary>The deck colour tokens defined in the stylesheet.</summary>
+    private static readonly string[] Colors =
+        ["violet", "sky", "teal", "emerald", "amber", "rose", "ember", "indigo", "slate"];
+
+    private static readonly string[] Emojis =
+        ["📚", "🗂️", "🧠", "🌍", "🍲", "🐾", "💼", "🎓", "✈️", "🎵", "⚗️", "🏛️", "💡", "🧩", "🎨", "⚽"];
+
+    /// <summary>The languages the study modes are most likely to be used with.</summary>
+    private static readonly (string Tag, string Label)[] Languages =
+    [
+        ("en-US", "English (US)"),
+        ("en-GB", "English (UK)"),
+        ("es-ES", "Spanish"),
+        ("fr-FR", "French"),
+        ("de-DE", "German"),
+        ("it-IT", "Italian"),
+        ("pt-BR", "Portuguese (Brazil)"),
+        ("ru-RU", "Russian"),
+        ("pl-PL", "Polish"),
+        ("uk-UA", "Ukrainian"),
+        ("nl-NL", "Dutch"),
+        ("sv-SE", "Swedish"),
+        ("tr-TR", "Turkish"),
+        ("ar-SA", "Arabic"),
+        ("he-IL", "Hebrew"),
+        ("hi-IN", "Hindi"),
+        ("ja-JP", "Japanese"),
+        ("ko-KR", "Korean"),
+        ("zh-CN", "Chinese (Simplified)"),
+        ("zh-TW", "Chinese (Traditional)"),
+    ];
+
+    protected override void OnParametersSet()
+    {
+        if (Deck is not { } deck)
+        {
+            return;
+        }
+
+        _name = deck.Name;
+        _description = deck.Description ?? string.Empty;
+        _emoji = deck.Emoji;
+        _color = deck.ColorToken;
+        _frontLanguage = deck.FrontLanguage;
+        _backLanguage = deck.BackLanguage;
+    }
+
+    private void NextEmoji()
+    {
+        _emojiIndex = (_emojiIndex + 1) % Emojis.Length;
+        _emoji = Emojis[_emojiIndex];
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            _error = "A deck needs a name.";
+            return;
+        }
+
+        _error = null;
+
+        await OnSave.InvokeAsync(new DeckDraft(
+            _name.Trim(),
+            _description.Trim(),
+            _emoji,
+            _color,
+            _frontLanguage,
+            _backLanguage));
+    }
+}

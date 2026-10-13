@@ -1,0 +1,81 @@
+@* Multiple choice and speed round. Options are numbered so the whole thing is
+   keyboard-driven, and the result is shown on the options themselves. *@
+@inject AppState State
+
+<div class="stack" style="width: 100%; gap: var(--space-6);">
+    <div class="flashcard-face" style="min-height: auto; padding: var(--space-8) var(--space-6);">
+        <p class="eyebrow">@(Question.Direction == StudyDirection.BackToFront ? "Meaning" : "Term")</p>
+        <p class="card-term">@Question.Prompt</p>
+
+        @if (State.SpeechAvailable)
+        {
+            <button type="button" class="btn btn-ghost btn-icon" @onclick="Speak" aria-label="Speak the prompt">
+                <Icon Name="speaker" Size="18" />
+            </button>
+        }
+    </div>
+
+    <div class="choices">
+        @for (int i = 0; i < Question.Choices.Count; i++)
+        {
+            int index = i;
+            string choice = Question.Choices[i];
+
+            <button type="button" class="choice" data-result="@ResultFor(index)"
+                    disabled="@(Grade is not null)" @onclick="() => OnChoose.InvokeAsync(index)">
+                <span class="choice-key">@(index + 1)</span>
+                <span style="flex: 1;">@choice</span>
+
+                @if (Grade is not null && index == Question.CorrectChoiceIndex)
+                {
+                    <Icon Name="check" Size="17" />
+                }
+            </button>
+        }
+    </div>
+
+    @if (Grade is { } grade)
+    {
+        <div class="stack" style="align-items: center; gap: var(--space-3);">
+            @if (!grade.IsAcceptable)
+            {
+                <p class="secondary" style="text-align: center;">
+                    The answer was <strong>@Question.Answer</strong>.
+                </p>
+            }
+
+            <button type="button" class="btn btn-primary btn-lg" @onclick="OnContinue">
+                Continue
+                <kbd>↵</kbd>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StudyQuestion Question { get; set; } = null!;
+
+    [Parameter] public GradedAnswer? Grade { get; set; }
+
+    [Parameter] public EventCallback<int> OnChoose { get; set; }
+
+    [Parameter] public EventCallback OnContinue { get; set; }
+
+    /// <summary>Marks the right option correct and a wrong pick wrong; others stay plain.</summary>
+    private string? ResultFor(int index)
+    {
+        if (Grade is null)
+        {
+            return null;
+        }
+
+        if (index == Question.CorrectChoiceIndex)
+        {
+            return "correct";
+        }
+
+        return !Grade.IsAcceptable ? "wrong" : null;
+    }
+
+    private Task Speak() => State.SpeakAsync(Question.Prompt, Question.PromptLanguage);
+}

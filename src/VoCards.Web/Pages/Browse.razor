@@ -1,0 +1,328 @@
+@page "/browse"
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject ToastService Toasts
+@inject KeyboardService Keys
+@inject JsBridge Js
+@inject NavigationManager Nav
+
+<PageTitle>Browse — VoCards</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Browse</h1>
+        <p>Search every card in the library, filter it, and study exactly that slice.</p>
+    </div>
+
+    <div class="page-actions">
+        <button type="button" class="btn btn-primary" @onclick="StudyResults" disabled="@(_hits.Count == 0)">
+            <Icon Name="play" Size="16" />
+            Study these
+        </button>
+    </div>
+</div>
+
+@* ============================================================== controls *@
+<div class="panel panel-body stack" style="margin-bottom: var(--space-5);">
+    <div class="input-search">
+        <Icon Name="search" Size="16" />
+        <input id="browse-search" class="input" type="search" autocomplete="off"
+               placeholder="Search fronts, backs, examples, notes and tags…"
+               value="@_query.Text" @oninput="OnSearch" />
+    </div>
+
+    <div class="row-wrap">
+        <select class="select" style="max-width: 12rem;" value="@_deckFilter"
+                @onchange="e => SetDeck(e.Value?.ToString())">
+            <option value="">All decks</option>
+            @foreach (Deck deck in Store.Library.Decks)
+            {
+                <option value="@deck.Id">@deck.Emoji @deck.Name</option>
+            }
+        </select>
+
+        <select class="select" style="max-width: 10rem;" value="@_stateFilter"
+                @onchange="e => SetState(e.Value?.ToString())">
+            <option value="">Any state</option>
+            <option value="New">New</option>
+            <option value="Learning">Learning</option>
+            <option value="Review">Review</option>
+            <option value="Relearning">Relearning</option>
+            <option value="Suspended">Suspended</option>
+        </select>
+
+        @if (Store.Library.AllTags.Count > 0)
+        {
+            <select class="select" style="max-width: 10rem;" value="@_tagFilter"
+                    @onchange="e => SetTag(e.Value?.ToString())">
+                <option value="">Any tag</option>
+                @foreach (string tag in Store.Library.AllTags)
+                {
+                    <option value="@tag">@tag</option>
+                }
+            </select>
+        }
+
+        <select class="select" style="max-width: 11rem;" value="@_query.Sort"
+                @onchange="e => SetSort(e.Value?.ToString())">
+            <option value="@nameof(CardSort.Relevance)">Best match</option>
+            <option value="@nameof(CardSort.FrontAsc)">A → Z</option>
+            <option value="@nameof(CardSort.FrontDesc)">Z → A</option>
+            <option value="@nameof(CardSort.RecentlyAdded)">Recently added</option>
+            <option value="@nameof(CardSort.RecentlyModified)">Recently edited</option>
+            <option value="@nameof(CardSort.DueSoonest)">Due soonest</option>
+            <option value="@nameof(CardSort.HardestFirst)">Hardest first</option>
+            <option value="@nameof(CardSort.MostLapses)">Most lapses</option>
+        </select>
+
+        <span class="spacer" style="flex: 1;"></span>
+
+        <button type="button" class="btn btn-sm" aria-pressed="@(_query.Starred == true)"
+                @onclick="ToggleStarred">
+            <Icon Name="star" Size="14" /> Starred
+        </button>
+
+        <button type="button" class="btn btn-sm" aria-pressed="@(_query.Leech == true)"
+                @onclick="ToggleLeeches">
+            <Icon Name="alert" Size="14" /> Leeches
+        </button>
+
+        @if (!_query.IsEmpty)
+        {
+            <button type="button" class="btn btn-ghost btn-sm" @onclick="ClearFilters">
+                <Icon Name="x" Size="14" /> Clear
+            </button>
+        }
+    </div>
+</div>
+
+@* =============================================================== results *@
+<div class="row" style="margin-bottom: var(--space-3);">
+    <p class="muted" style="font-size: var(--text-sm);">
+        @Format.Count(_hits.Count) @(_hits.Count == 1 ? "card" : "cards")
+        @if (!_query.IsEmpty)
+        {
+            <span> matching your filters</span>
+        }
+    </p>
+</div>
+
+@if (_hits.Count == 0)
+{
+    <div class="panel">
+        <EmptyState Glyph="🔎" Title="Nothing matches"
+                    Description="Try a shorter search, or clear a filter or two." >
+            <Action>
+                <button type="button" class="btn btn-outline" @onclick="ClearFilters">Clear filters</button>
+            </Action>
+        </EmptyState>
+    </div>
+}
+else
+{
+    <div class="panel table-wrap">
+        <table class="data">
+            <thead>
+                <tr>
+                    <th>Front</th>
+                    <th>Back</th>
+                    <th style="width: 9rem;">Deck</th>
+                    <th style="width: 7rem;">State</th>
+                    <th style="width: 6rem;">Due</th>
+                    <th style="width: 4.5rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (CardHit hit in _hits.Take(_limit))
+                {
+                    <tr @key="hit.Card.Id">
+                        <td>
+                            <div class="row" style="gap: var(--space-2);">
+                                @if (hit.Card.IsStarred)
+                                {
+                                    <span style="color: var(--warning);"><Icon Name="star-filled" Size="13" /></span>
+                                }
+                                <strong>@hit.Card.Front</strong>
+                            </div>
+                        </td>
+
+                        <td class="secondary">@hit.Card.Back</td>
+
+                        <td>
+                            <a class="badge" href="decks/@hit.Deck.Id" data-deck="@hit.Deck.ColorToken"
+                               style="text-decoration: none; background: var(--deck-soft); color: var(--text-primary);">
+                                @hit.Deck.Emoji @TextTools.Ellipsize(hit.Deck.Name, 14)
+                            </a>
+                        </td>
+
+                        <td>
+                            <span class="badge @Format.StateBadge(hit.Card.State)">@Format.StateName(hit.Card.State)</span>
+                            @if (hit.Card.IsLeech)
+                            {
+                                <span class="badge badge-critical" style="margin-left: 4px;">leech</span>
+                            }
+                        </td>
+
+                        <td class="muted" style="font-size: var(--text-xs);">
+                            @(hit.Card.DueAt is { } due ? Format.Relative(due, Store.Now) : "—")
+                        </td>
+
+                        <td>
+                            <button type="button" class="btn btn-ghost btn-icon btn-sm"
+                                    @onclick="() => Edit(hit)" aria-label="Edit">
+                                <Icon Name="edit" Size="14" />
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_hits.Count > _limit)
+    {
+        <div class="row" style="justify-content: center; margin-top: var(--space-4);">
+            <button type="button" class="btn btn-outline" @onclick="() => _limit += PageSize">
+                Show more (@(_hits.Count - _limit) remaining)
+            </button>
+        </div>
+    }
+}
+
+@code {
+    private const int PageSize = 60;
+
+    private CardQuery _query = new();
+    private IReadOnlyList<CardHit> _hits = [];
+    private int _limit = PageSize;
+
+    private string _deckFilter = string.Empty;
+    private string _stateFilter = string.Empty;
+    private string _tagFilter = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Search;
+        Keys.Push(this, HandleKey);
+        Search();
+    }
+
+    private void Search()
+    {
+        _hits = CardSearch.Run(Store.Library, _query);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnSearch(ChangeEventArgs args)
+    {
+        _query = _query with { Text = args.Value?.ToString() };
+        _limit = PageSize;
+        Search();
+    }
+
+    private void SetDeck(string? value)
+    {
+        _deckFilter = value ?? string.Empty;
+        _query = _query with
+        {
+            DeckIds = Guid.TryParse(_deckFilter, out Guid id) ? [id] : [],
+        };
+        Search();
+    }
+
+    private void SetState(string? value)
+    {
+        _stateFilter = value ?? string.Empty;
+        _query = _query with
+        {
+            States = Enum.TryParse(_stateFilter, out CardState state) ? [state] : [],
+        };
+        Search();
+    }
+
+    private void SetTag(string? value)
+    {
+        _tagFilter = value ?? string.Empty;
+        _query = _query with
+        {
+            Tags = string.IsNullOrEmpty(_tagFilter) ? [] : [_tagFilter],
+        };
+        Search();
+    }
+
+    private void SetSort(string? value)
+    {
+        _query = _query with
+        {
+            Sort = Enum.TryParse(value, out CardSort sort) ? sort : CardSort.Relevance,
+        };
+        Search();
+    }
+
+    private void ToggleStarred()
+    {
+        _query = _query with { Starred = _query.Starred == true ? null : true };
+        Search();
+    }
+
+    private void ToggleLeeches()
+    {
+        _query = _query with { Leech = _query.Leech == true ? null : true };
+        Search();
+    }
+
+    private void ClearFilters()
+    {
+        _query = new CardQuery();
+        _deckFilter = string.Empty;
+        _stateFilter = string.Empty;
+        _tagFilter = string.Empty;
+        _limit = PageSize;
+        Search();
+    }
+
+    private void Edit(CardHit hit) => Nav.NavigateTo($"/decks/{hit.Deck.Id}?card={hit.Card.Id}");
+
+    /// <summary>
+    /// Studies exactly what the filters produced. A single-deck result studies that
+    /// deck with the tag filter applied; a cross-deck result crams the whole set,
+    /// since a mixed queue has no single deck's settings to schedule against.
+    /// </summary>
+    private void StudyResults()
+    {
+        if (_hits.Count == 0)
+        {
+            return;
+        }
+
+        Guid[] decks = _hits.Select(h => h.Deck.Id).Distinct().ToArray();
+
+        if (decks.Length == 1)
+        {
+            string tag = _tagFilter is { Length: > 0 } ? $"?tag={Uri.EscapeDataString(_tagFilter)}" : string.Empty;
+            Nav.NavigateTo($"/study/{decks[0]}{tag}");
+            return;
+        }
+
+        Toasts.Show("Studying every matching deck.");
+        Nav.NavigateTo("/study");
+    }
+
+    private bool HandleKey(KeyPress press)
+    {
+        if (press.Key != "/")
+        {
+            return false;
+        }
+
+        _ = Js.FocusAsync("#browse-search");
+        return true;
+    }
+
+    public void Dispose()
+    {
+        Store.Changed -= Search;
+        Keys.Remove(this);
+    }
+}

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VoCards.Core/VoCards.Core.csproj" />
+    <Project Path="src/VoCards.Web/VoCards.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoCards.Core.Tests/VoCards.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,41 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject LibraryStore Store
+
+@*
+    The study view owns the whole screen: no sidebar, no top bar, no tab bar.
+
+    This is a layout rather than a flag on a shared service. An earlier version
+    had MainLayout hide its chrome when AppState.Immersive was set, but that
+    depends on the page's OnInitialized running before the layout's render — a
+    race the layout lost, so the shell stayed on screen behind the session.
+    Choosing the layout per page is decided at routing time and cannot race.
+
+    Like MainLayout, this holds the page back until the library has come out of
+    browser storage. Without that gate, deep-linking straight to /study builds
+    the session against an empty library and reports "no decks to study".
+*@
+
+@if (Store.IsReady)
+{
+    @Body
+}
+else
+{
+    <div class="study-shell">
+        <div class="study-stage" aria-busy="true" aria-label="Loading">
+            <div class="skeleton" style="width: 100%; height: min(46dvh, 22rem);
+                 border-radius: var(--radius-2xl);"></div>
+            <div class="skeleton" style="width: 100%; height: 4.5rem;
+                 border-radius: var(--radius-lg);"></div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => Store.Changed += Refresh;
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Store.Changed -= Refresh;
+}

@@ -1,0 +1,39 @@
+@* The four grading buttons, each previewing the interval it would grant. *@
+
+<div class="rating-bar">
+    <button type="button" class="rating-btn rating-again" @onclick="() => Grade(Rating.Again)">
+        Again
+        <small>@Preview(Rating.Again)</small>
+        <span class="visually-hidden">Press 1</span>
+    </button>
+
+    <button type="button" class="rating-btn rating-hard" @onclick="() => Grade(Rating.Hard)">
+        Hard
+        <small>@Preview(Rating.Hard)</small>
+        <span class="visually-hidden">Press 2</span>
+    </button>
+
+    <button type="button" class="rating-btn rating-good" @onclick="() => Grade(Rating.Good)">
+        Good
+        <small>@Preview(Rating.Good)</small>
+        <span class="visually-hidden">Press 3</span>
+    </button>
+
+    <button type="button" class="rating-btn rating-easy" @onclick="() => Grade(Rating.Easy)">
+        Easy
+        <small>@Preview(Rating.Easy)</small>
+        <span class="visually-hidden">Press 4</span>
+    </button>
+</div>
+
+@code {
+    /// <summary>Interval previews keyed by rating, or empty when cramming.</summary>
+    [Parameter] public IReadOnlyDictionary<Rating, string>? Previews { get; set; }
+
+    [Parameter] public EventCallback<Rating> OnGrade { get; set; }
+
+    private string Preview(Rating rating) =>
+        Previews is not null && Previews.TryGetValue(rating, out string? label) ? label : "—";
+
+    private Task Grade(Rating rating) => OnGrade.InvokeAsync(rating);
+}

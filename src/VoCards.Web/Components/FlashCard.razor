@@ -1,0 +1,101 @@
+@*
+    The study card itself: a 3D flip between the prompt and the answer.
+
+    When the learner has animations off, the transform is disabled and the two
+    faces cross-fade by visibility instead, so the card still works.
+*@
+@inject AppState State
+@inject LibraryStore Store
+
+<div class="flashcard"
+     data-flipped="@Flipped.ToString().ToLowerInvariant()"
+     data-animate="@Animate.ToString().ToLowerInvariant()"
+     data-leaving="@Leaving.ToString().ToLowerInvariant()">
+
+    <div class="flashcard-inner" @onclick="OnFlip">
+        @* ---------------------------------------------------------- front -- *@
+        <div class="flashcard-face flashcard-front">
+            <p class="eyebrow">@PromptLabel</p>
+
+            <p class="card-term">@Question.Prompt</p>
+
+            @if (Question.Card.Pronunciation is { Length: > 0 } phonetic
+                 && Question.Direction == StudyDirection.FrontToBack)
+            {
+                <p class="muted mono" style="font-size: var(--text-sm);">@phonetic</p>
+            }
+
+            @if (State.SpeechAvailable)
+            {
+                <button type="button" class="btn btn-ghost btn-icon tip" data-tip="Speak (S)"
+                        @onclick:stopPropagation="true" @onclick="SpeakPrompt"
+                        aria-label="Speak the prompt">
+                    <Icon Name="speaker" Size="18" />
+                </button>
+            }
+
+            <p class="card-hintline">Tap the card, or press <kbd>Space</kbd>, to flip</p>
+        </div>
+
+        @* ----------------------------------------------------------- back -- *@
+        <div class="flashcard-face flashcard-back">
+            <p class="eyebrow">@AnswerLabel</p>
+
+            <p class="card-answer">@Question.Answer</p>
+
+            @if (Question.Card.Example is { Length: > 0 } example)
+            {
+                <p class="card-example">&ldquo;@example&rdquo;</p>
+            }
+
+            @if (Question.Card.Notes is { Length: > 0 } notes)
+            {
+                <p class="card-notes">@notes</p>
+            }
+
+            @if (Question.Card.Tags.Count > 0)
+            {
+                <div class="row-wrap" style="justify-content: center; gap: var(--space-2);">
+                    @foreach (string tag in Question.Card.Tags)
+                    {
+                        <span class="badge">@tag</span>
+                    }
+                </div>
+            }
+
+            @if (State.SpeechAvailable)
+            {
+                <button type="button" class="btn btn-ghost btn-icon tip" data-tip="Speak the answer"
+                        @onclick:stopPropagation="true" @onclick="SpeakAnswer"
+                        aria-label="Speak the answer">
+                    <Icon Name="speaker" Size="18" />
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StudyQuestion Question { get; set; } = null!;
+
+    [Parameter] public bool Flipped { get; set; }
+
+    /// <summary>The card has been graded and is turning back over before it is swept aside.</summary>
+    [Parameter] public bool Leaving { get; set; }
+
+    [Parameter] public EventCallback OnFlipRequested { get; set; }
+
+    private bool Animate => Store.Profile.CardFlipAnimation && !Store.Profile.ReduceMotion;
+
+    private string PromptLabel =>
+        Question.Direction == StudyDirection.BackToFront ? "Meaning" : "Term";
+
+    private string AnswerLabel =>
+        Question.Direction == StudyDirection.BackToFront ? "Term" : "Meaning";
+
+    private Task OnFlip() => OnFlipRequested.InvokeAsync();
+
+    private Task SpeakPrompt() => State.SpeakAsync(Question.Prompt, Question.PromptLanguage);
+
+    private Task SpeakAnswer() => State.SpeakAsync(Question.Answer, Question.AnswerLanguage);
+}

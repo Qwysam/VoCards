@@ -1,0 +1,61 @@
+@*
+    A single headline number. Deliberately not a chart: one value with no series
+    is better read as a tile than plotted.
+*@
+
+<div class="stat @ToneClass">
+    <span class="stat-label">
+        @if (Icon is { Length: > 0 })
+        {
+            <Icon Name="@Icon" Size="13" />
+        }
+        @Label
+    </span>
+
+    <span class="stat-value">@Value</span>
+
+    @if (!string.IsNullOrWhiteSpace(Meta))
+    {
+        <span class="stat-meta">@Meta</span>
+    }
+
+    @if (Progress is { } progress)
+    {
+        <div class="bar bar-sm" style="margin-top: var(--space-2);" role="progressbar"
+             aria-valuenow="@((int)(progress * 100))" aria-valuemin="0" aria-valuemax="100"
+             aria-label="@Label">
+            <div class="bar-fill" style="width: @Format.Percent(progress); background: @BarColor"></div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Value { get; set; } = string.Empty;
+
+    [Parameter] public string? Meta { get; set; }
+
+    [Parameter] public string? Icon { get; set; }
+
+    /// <summary>"accent", "good", "warning" or null for plain ink.</summary>
+    [Parameter] public string? Tone { get; set; }
+
+    /// <summary>Optional 0..1 progress bar beneath the number.</summary>
+    [Parameter] public double? Progress { get; set; }
+
+    private string ToneClass => Tone switch
+    {
+        "accent" => "stat-accent",
+        "good" => "stat-good",
+        "warning" => "stat-warning",
+        _ => string.Empty,
+    };
+
+    private string BarColor => Tone switch
+    {
+        "good" => "var(--good)",
+        "warning" => "var(--warning)",
+        _ => "var(--accent-500)",
+    };
+}

@@ -1,0 +1,684 @@
+@page "/decks/{DeckId:guid}"
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject ToastService Toasts
+@inject KeyboardService Keys
+@inject JsBridge Js
+@inject NavigationManager Nav
+
+<PageTitle>@(_deck?.Name ?? "Deck") — VoCards</PageTitle>
+
+@if (_deck is null)
+{
+    <EmptyState Glyph="🫥" Title="That deck is gone"
+                Description="It may have been deleted, or the link is out of date.">
+        <Action><a class="btn btn-primary" href="decks">Back to decks</a></Action>
+    </EmptyState>
+}
+else
+{
+    <div class="page-head">
+        <div class="row" style="gap: var(--space-4); align-items: flex-start;">
+            <span class="deck-glyph" data-deck="@_deck.ColorToken"
+                  style="width: 3.25rem; height: 3.25rem; font-size: 1.625rem;">@_deck.Emoji</span>
+
+            <div>
+                <h1>@_deck.Name</h1>
+                <p>
+                    @_deck.TotalCards cards ·
+                    @Format.PercentLabel(_deck.Mastery) mastered ·
+                    @(_deck.DueCount(Store.Now)) due
+                    @if (!string.IsNullOrWhiteSpace(_deck.Description))
+                    {
+                        <span> · @_deck.Description</span>
+                    }
+                </p>
+            </div>
+        </div>
+
+        <div class="page-actions">
+            <button type="button" class="btn btn-ghost btn-icon tip" data-tip="Deck settings"
+                    @onclick="() => _editingDeck = true" aria-label="Deck settings">
+                <Icon Name="settings" Size="17" />
+            </button>
+            <button type="button" class="btn btn-ghost btn-icon tip" data-tip="More"
+                    @onclick="() => _menuOpen = !_menuOpen" aria-label="More actions">
+                <Icon Name="list" Size="17" />
+            </button>
+            <button type="button" class="btn btn-outline" @onclick="() => _addingCard = true">
+                <Icon Name="plus" Size="16" />
+                Card
+            </button>
+            <button type="button" class="btn btn-primary" @onclick="() => _launching = true">
+                <Icon Name="play" Size="16" />
+                Study
+            </button>
+        </div>
+    </div>
+
+    @if (_menuOpen)
+    {
+        <div class="panel panel-body row-wrap" style="margin-bottom: var(--space-5);">
+            <button type="button" class="btn btn-sm" @onclick="StartCram">
+                <Icon Name="brain" Size="14" /> Cram (ignores the schedule)
+            </button>
+            <button type="button" class="btn btn-sm" @onclick="DuplicateAsync">
+                <Icon Name="copy" Size="14" /> Duplicate
+            </button>
+            <button type="button" class="btn btn-sm" @onclick="ExportJsonAsync">
+                <Icon Name="download" Size="14" /> Export JSON
+            </button>
+            <button type="button" class="btn btn-sm" @onclick="ExportCsvAsync">
+                <Icon Name="download" Size="14" /> Export CSV
+            </button>
+            <span class="spacer" style="flex: 1;"></span>
+            <button type="button" class="btn btn-sm btn-danger" @onclick="() => _confirmReset = true">
+                <Icon Name="refresh" Size="14" /> Reset progress
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" @onclick="() => _confirmDelete = true">
+                <Icon Name="trash" Size="14" /> Delete deck
+            </button>
+        </div>
+    }
+
+    @* ---------------------------------------------------------- summary -- *@
+    <section class="grid grid-stats" style="margin-bottom: var(--space-6);">
+        <StatTile Label="Due now" Value="@_deck.DueCount(Store.Now).ToString()" Icon="clock" Tone="accent" />
+        <StatTile Label="New" Value="@_deck.NewCards.ToString()" Icon="sparkle" />
+        <StatTile Label="Mature" Value="@_deck.MaturedCards.ToString()" Icon="check" Tone="good" />
+        <StatTile Label="Leeches" Value="@_deck.LeechCards.ToString()" Icon="alert"
+                  Tone="@(_deck.LeechCards > 0 ? "warning" : null)"
+                  Meta="@(_deck.LeechCards > 0 ? "cards you keep forgetting" : "nothing troublesome")" />
+    </section>
+
+    @* ------------------------------------------------------- card table -- *@
+    <div class="row-wrap" style="margin-bottom: var(--space-4);">
+        <div class="input-search" style="flex: 1; min-width: 12rem; max-width: 20rem;">
+            <Icon Name="search" Size="16" />
+            <input id="card-filter" class="input" type="search" placeholder="Filter cards…"
+                   value="@_filter" @oninput="e => _filter = e.Value?.ToString() ?? string.Empty" />
+        </div>
+
+        @if (_deck.Tags.Count > 0)
+        {
+            <select class="select" style="max-width: 11rem;" @bind="_tagFilter">
+                <option value="">All tags</option>
+                @foreach (string tag in _deck.Tags)
+                {
+                    <option value="@tag">@tag</option>
+                }
+            </select>
+        }
+
+        <span class="spacer" style="flex: 1;"></span>
+
+        @if (_selected.Count > 0)
+        {
+            <span class="badge badge-accent">@_selected.Count selected</span>
+            <button type="button" class="btn btn-sm" @onclick="SuspendSelected">
+                <Icon Name="pause" Size="14" /> Suspend
+            </button>
+            <button type="button" class="btn btn-sm" @onclick="StarSelected">
+                <Icon Name="star" Size="14" /> Star
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" @onclick="DeleteSelectedAsync">
+                <Icon Name="trash" Size="14" /> Delete
+            </button>
+        }
+    </div>
+
+    @if (VisibleCards.Count == 0)
+    {
+        <div class="panel">
+            <EmptyState Glyph="🃏"
+                        Title="@(_deck.TotalCards == 0 ? "This deck is empty" : "No cards match")"
+                        Description="@(_deck.TotalCards == 0 ? "Add your first card, or import a word list on the settings page." : "Try a shorter search, or clear the tag filter.")">
+                <Action>
+                    @if (_deck.TotalCards == 0)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="() => _addingCard = true">
+                            <Icon Name="plus" Size="16" /> Add a card
+                        </button>
+                    }
+                </Action>
+            </EmptyState>
+        </div>
+    }
+    else
+    {
+        <div class="panel table-wrap">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th style="width: 2.5rem;">
+                            <input type="checkbox" checked="@AllSelected" @onchange="ToggleAll"
+                                   aria-label="Select every visible card" />
+                        </th>
+                        <th>Front</th>
+                        <th>Back</th>
+                        <th style="width: 7rem;">State</th>
+                        <th style="width: 6rem;">Due</th>
+                        <th style="width: 5rem;">Accuracy</th>
+                        <th style="width: 5.5rem;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (Card card in VisibleCards)
+                    {
+                        <tr @key="card.Id" data-selected="@_selected.Contains(card.Id).ToString().ToLowerInvariant()">
+                            <td>
+                                <input type="checkbox" checked="@_selected.Contains(card.Id)"
+                                       @onchange="() => ToggleOne(card.Id)"
+                                       aria-label="@($"Select {card.Front}")" />
+                            </td>
+
+                            <td>
+                                <div class="row" style="gap: var(--space-2);">
+                                    @if (card.IsStarred)
+                                    {
+                                        <span style="color: var(--warning);"><Icon Name="star-filled" Size="13" /></span>
+                                    }
+                                    <strong>@card.Front</strong>
+                                </div>
+                                @if (card.Tags.Count > 0)
+                                {
+                                    <div class="row-wrap" style="gap: 4px; margin-top: 3px;">
+                                        @foreach (string tag in card.Tags)
+                                        {
+                                            <span class="badge" style="font-size: var(--text-2xs);">@tag</span>
+                                        }
+                                    </div>
+                                }
+                            </td>
+
+                            <td class="secondary">@card.Back</td>
+
+                            <td>
+                                <span class="badge @Format.StateBadge(card.State)">@Format.StateName(card.State)</span>
+                                @if (card.IsLeech)
+                                {
+                                    <span class="badge badge-critical" style="margin-left: 4px;">leech</span>
+                                }
+                            </td>
+
+                            <td class="muted" style="font-size: var(--text-xs);">
+                                @(card.DueAt is { } due ? Format.Relative(due, Store.Now) : "—")
+                            </td>
+
+                            <td class="tnum">
+                                @(card.ReviewCount == 0 ? "—" : Format.PercentLabel(card.Accuracy))
+                            </td>
+
+                            <td>
+                                <div class="row" style="gap: 2px; justify-content: flex-end;">
+                                    <button type="button" class="btn btn-ghost btn-icon btn-sm"
+                                            @onclick="() => _editingCard = card" aria-label="Edit">
+                                        <Icon Name="edit" Size="14" />
+                                    </button>
+                                    <button type="button" class="btn btn-ghost btn-icon btn-sm"
+                                            @onclick="() => ToggleStar(card)"
+                                            aria-label="@(card.IsStarred ? "Unstar" : "Star")">
+                                        <Icon Name="@(card.IsStarred ? "star-filled" : "star")" Size="14" />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (VisibleCards.Count < FilteredCount)
+        {
+            <div class="row" style="justify-content: center; margin-top: var(--space-4);">
+                <button type="button" class="btn btn-outline" @onclick="() => _limit += PageSize">
+                    Show more (@(FilteredCount - VisibleCards.Count) remaining)
+                </button>
+            </div>
+        }
+    }
+}
+
+@* ------------------------------------------------------------- dialogs -- *@
+@if (_launching && _deck is not null)
+{
+    <StudyLauncher DeckName="@_deck.Name" DeckId="_deck.Id" DueCount="_deck.DueCount(Store.Now)"
+                   Tags="_deck.Tags"
+                   FrontLanguageLabel="@LanguageLabel(_deck.FrontLanguage)"
+                   BackLanguageLabel="@LanguageLabel(_deck.BackLanguage)"
+                   InitialMode="_deck.Settings.DefaultMode"
+                   InitialDirection="_deck.Settings.Direction"
+                   OnStart="Go" OnCancel="() => _launching = false" />
+}
+
+@if (_addingCard)
+{
+    <CardEditor OnSave="AddCardAsync" OnCancel="() => _addingCard = false" />
+}
+
+@if (_editingCard is { } editing)
+{
+    <CardEditor Card="editing" OnSave="SaveCardAsync" OnCancel="() => _editingCard = null"
+                OnDelete="() => DeleteCardAsync(editing)" />
+}
+
+@if (_editingDeck && _deck is not null)
+{
+    <DeckEditor Deck="_deck" OnSave="SaveDeckAsync" OnCancel="() => _editingDeck = false" />
+}
+
+@if (_confirmDelete)
+{
+    <ConfirmDialog Title="Delete this deck?"
+                   Message="@($"“{_deck?.Name}” and its {_deck?.TotalCards} cards will be removed.")"
+                   Detail="This also removes the review history for those cards. Export a backup first if you might want them back."
+                   ConfirmLabel="Delete deck"
+                   OnConfirm="DeleteDeckAsync"
+                   OnCancel="() => _confirmDelete = false" />
+}
+
+@if (_confirmReset)
+{
+    <ConfirmDialog Title="Reset all progress?"
+                   Message="Every card in this deck goes back to New."
+                   Detail="The cards themselves are kept — only the scheduling is cleared."
+                   ConfirmLabel="Reset progress"
+                   OnConfirm="ResetProgressAsync"
+                   OnCancel="() => _confirmReset = false" />
+}
+
+@code {
+    private const int PageSize = 50;
+
+    [Parameter] public Guid DeckId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "card")]
+    public Guid? FocusCard { get; set; }
+
+    private Deck? _deck;
+    private string _filter = string.Empty;
+    private string _tagFilter = string.Empty;
+    private int _limit = PageSize;
+
+    private readonly HashSet<Guid> _selected = [];
+
+    private bool _addingCard;
+    private Card? _editingCard;
+    private bool _editingDeck;
+    private bool _menuOpen;
+    private bool _launching;
+    private bool _confirmDelete;
+    private bool _confirmReset;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Refresh;
+        Keys.Push(this, HandleKey);
+    }
+
+    protected override void OnParametersSet()
+    {
+        _deck = Store.Library.FindDeck(DeckId);
+        _selected.Clear();
+
+        if (FocusCard is { } cardId && _deck?.FindCard(cardId) is { } card)
+        {
+            _editingCard = card;
+        }
+    }
+
+    private IReadOnlyList<Card> Filtered
+    {
+        get
+        {
+            if (_deck is null)
+            {
+                return [];
+            }
+
+            IEnumerable<Card> cards = _deck.Cards;
+
+            if (_filter.Trim() is { Length: > 0 } needle)
+            {
+                cards = cards.Where(c =>
+                    TextTools.ContainsLoose(c.Front, needle)
+                    || TextTools.ContainsLoose(c.Back, needle)
+                    || TextTools.ContainsLoose(c.Notes, needle));
+            }
+
+            if (_tagFilter is { Length: > 0 })
+            {
+                cards = cards.Where(c => c.HasTag(_tagFilter));
+            }
+
+            return cards.ToArray();
+        }
+    }
+
+    private int FilteredCount => Filtered.Count;
+
+    private IReadOnlyList<Card> VisibleCards => Filtered.Take(_limit).ToArray();
+
+    private bool AllSelected => VisibleCards.Count > 0 && VisibleCards.All(c => _selected.Contains(c.Id));
+
+    private bool HandleKey(KeyPress press)
+    {
+        if (press.Lower == "n" && !_addingCard && _editingCard is null)
+        {
+            _addingCard = true;
+            InvokeAsync(StateHasChanged);
+            return true;
+        }
+
+        if (press.Key == "/")
+        {
+            _ = Js.FocusAsync("#card-filter");
+            return true;
+        }
+
+        return false;
+    }
+
+    // ------------------------------------------------------------ selection
+
+    private void ToggleOne(Guid id)
+    {
+        if (!_selected.Add(id))
+        {
+            _selected.Remove(id);
+        }
+    }
+
+    private void ToggleAll()
+    {
+        if (AllSelected)
+        {
+            _selected.Clear();
+            return;
+        }
+
+        foreach (Card card in VisibleCards)
+        {
+            _selected.Add(card.Id);
+        }
+    }
+
+    // --------------------------------------------------------------- cards
+
+    private Task AddCardAsync(CardDraft draft)
+    {
+        if (_deck is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var result = _deck.AddCard(draft.Front, draft.Back);
+
+        if (result.IsFailure)
+        {
+            Toasts.Error(result.Error!);
+            return Task.CompletedTask;
+        }
+
+        Apply(result.Value!, draft);
+        _addingCard = false;
+        Store.MarkChanged();
+        Toasts.Success($"Added “{draft.Front}”.");
+        return Task.CompletedTask;
+    }
+
+    private Task SaveCardAsync(CardDraft draft)
+    {
+        if (_editingCard is not { } card)
+        {
+            return Task.CompletedTask;
+        }
+
+        var result = card.Edit(draft.Front, draft.Back);
+
+        if (result.IsFailure)
+        {
+            Toasts.Error(result.Error!);
+            return Task.CompletedTask;
+        }
+
+        Apply(card, draft);
+        _editingCard = null;
+        Store.MarkChanged();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Copies the optional fields from a draft onto a card.</summary>
+    private static void Apply(Card card, CardDraft draft)
+    {
+        card.Edit(example: draft.Example, notes: draft.Notes, pronunciation: draft.Pronunciation);
+        card.SetTags(draft.Tags);
+    }
+
+    private Task DeleteCardAsync(Card card)
+    {
+        if (_deck is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        // Keep the card in hand so Undo can put it straight back.
+        Deck deck = _deck;
+        deck.RemoveCard(card.Id);
+        _editingCard = null;
+        Store.MarkChanged();
+
+        Toasts.Undoable($"Deleted “{card.Front}”.", () =>
+        {
+            deck.AddCard(card);
+            Store.MarkChanged();
+            return Task.CompletedTask;
+        });
+
+        return Task.CompletedTask;
+    }
+
+    private Task DeleteSelectedAsync()
+    {
+        if (_deck is null || _selected.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        Deck deck = _deck;
+        Card[] removed = deck.Cards.Where(c => _selected.Contains(c.Id)).ToArray();
+        deck.RemoveCards(_selected.ToArray());
+        _selected.Clear();
+        Store.MarkChanged();
+
+        Toasts.Undoable($"Deleted {removed.Length} cards.", () =>
+        {
+            deck.AddCards(removed);
+            Store.MarkChanged();
+            return Task.CompletedTask;
+        });
+
+        return Task.CompletedTask;
+    }
+
+    private void SuspendSelected()
+    {
+        if (_deck is null)
+        {
+            return;
+        }
+
+        foreach (Card card in _deck.Cards.Where(c => _selected.Contains(c.Id)))
+        {
+            if (card.State == CardState.Suspended)
+            {
+                card.Unsuspend();
+            }
+            else
+            {
+                card.Suspend();
+            }
+        }
+
+        Toasts.Show($"Toggled suspension on {_selected.Count} cards.");
+        _selected.Clear();
+        Store.MarkChanged();
+    }
+
+    private void StarSelected()
+    {
+        if (_deck is null)
+        {
+            return;
+        }
+
+        foreach (Card card in _deck.Cards.Where(c => _selected.Contains(c.Id)))
+        {
+            card.Star();
+        }
+
+        Toasts.Show($"Starred {_selected.Count} cards.");
+        _selected.Clear();
+        Store.MarkChanged();
+    }
+
+    private void ToggleStar(Card card)
+    {
+        card.ToggleStar();
+        Store.MarkChanged();
+    }
+
+    // ---------------------------------------------------------------- deck
+
+    private Task SaveDeckAsync(DeckDraft draft)
+    {
+        if (_deck is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var result = Store.Library.RenameDeck(_deck.Id, draft.Name);
+
+        if (result.IsFailure)
+        {
+            Toasts.Error(result.Error!);
+            return Task.CompletedTask;
+        }
+
+        _deck.Describe(draft.Description);
+        _deck.SetAppearance(draft.Emoji, draft.Color);
+        _deck.SetLanguages(draft.FrontLanguage, draft.BackLanguage);
+
+        _editingDeck = false;
+        Store.MarkChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task DuplicateAsync()
+    {
+        if (_deck is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        var result = Store.Library.DuplicateDeck(_deck.Id);
+
+        if (result.IsSuccess)
+        {
+            Store.MarkChanged();
+            Toasts.Success($"Duplicated as “{result.Value!.Name}”.");
+            Nav.NavigateTo($"/decks/{result.Value.Id}");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task DeleteDeckAsync()
+    {
+        if (_deck is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        string name = _deck.Name;
+        Store.Library.RemoveDeck(_deck.Id);
+        Store.MarkChanged();
+        Toasts.Show($"Deleted “{name}”.");
+        Nav.NavigateTo("/decks");
+        return Task.CompletedTask;
+    }
+
+    private Task ResetProgressAsync()
+    {
+        _deck?.ResetProgress();
+        _confirmReset = false;
+        Store.MarkChanged();
+        Toasts.Show("Progress reset.");
+        return Task.CompletedTask;
+    }
+
+    // -------------------------------------------------------------- export
+
+    private async Task ExportJsonAsync()
+    {
+        if (_deck is null)
+        {
+            return;
+        }
+
+        string json = VoCardsJson.SerializeDeck(_deck);
+        await Js.DownloadAsync($"{Slug(_deck.Name)}.json", json, "application/json");
+        Toasts.Success("Deck exported.");
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        if (_deck is null)
+        {
+            return;
+        }
+
+        string csv = DelimitedPorter.Export(_deck);
+        await Js.DownloadAsync($"{Slug(_deck.Name)}.csv", csv, "text/csv");
+        Toasts.Success("Deck exported.");
+    }
+
+    private static string Slug(string name)
+    {
+        char[] cleaned = name
+            .Select(ch => char.IsLetterOrDigit(ch) ? char.ToLowerInvariant(ch) : '-')
+            .ToArray();
+
+        return new string(cleaned).Trim('-') is { Length: > 0 } slug ? slug : "deck";
+    }
+
+    private void Go(string url)
+    {
+        _launching = false;
+        Nav.NavigateTo(url);
+    }
+
+    /// <summary>Turns a BCP-47 tag into something readable for the direction picker.</summary>
+    private static string LanguageLabel(string tag)
+    {
+        try
+        {
+            return new CultureInfo(tag).NativeName.Split(' ')[0];
+        }
+        catch (CultureNotFoundException)
+        {
+            return tag;
+        }
+    }
+
+    private void StartCram() => Nav.NavigateTo($"/study/{DeckId}?cram=1");
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Store.Changed -= Refresh;
+        Keys.Remove(this);
+    }
+}

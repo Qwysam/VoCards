@@ -1,0 +1,32 @@
+<Project>
+
+  <!--
+    Shared build configuration for every project in the repository.
+    The original 2021 app had none of this: no nullable reference types,
+    no analyzers, no warning discipline. See PLAN.md for the full rationale.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- A vocabulary app compares accented text; ICU data must stay in. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- Warnings are bugs that have not happened yet. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors></WarningsNotAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Reproducibility / hygiene -->
+    <Deterministic>true</Deterministic>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+
+    <Authors>Vsevolod Zhdanov</Authors>
+    <Product>VoCards</Product>
+    <RepositoryUrl>https://github.com/Qwysam/VoCards</RepositoryUrl>
+  </PropertyGroup>
+
+</Project>

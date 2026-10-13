@@ -1,0 +1,156 @@
+@page "/achievements"
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+
+<PageTitle>Achievements — VoCards</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Achievements</h1>
+        <p>@_unlocked of @AchievementCatalog.All.Count unlocked · @Format.Count(Store.Profile.Xp) XP · level @Store.Profile.Level</p>
+    </div>
+</div>
+
+@* ----------------------------------------------------------- level card *@
+<section class="hero animate-rise" style="margin-bottom: var(--space-6);">
+    <RingProgress Value="@Store.Profile.LevelProgress" Size="118" Thickness="11" Label="Level progress">
+        <strong>@Store.Profile.Level</strong>
+        <small>level</small>
+    </RingProgress>
+
+    <div class="hero-copy">
+        <p class="eyebrow">Experience</p>
+        <p class="hero-number">@Format.Count(Store.Profile.Xp)</p>
+        <p class="secondary" style="margin-top: var(--space-2);">
+            @Store.Profile.XpIntoLevel of @Store.Profile.XpForNextLevel XP towards level @(Store.Profile.Level + 1).
+        </p>
+
+        <div class="bar" style="margin-top: var(--space-4); max-width: 26rem;" role="progressbar"
+             aria-valuenow="@((int)(Store.Profile.LevelProgress * 100))" aria-valuemin="0" aria-valuemax="100"
+             aria-label="Progress to the next level">
+            <div class="bar-fill" style="width: @Format.Percent(Store.Profile.LevelProgress)"></div>
+        </div>
+    </div>
+</section>
+
+@* ------------------------------------------------------------- progress *@
+<div class="row-wrap" style="margin-bottom: var(--space-5);">
+    <div class="bar bar-lg" style="flex: 1; min-width: 12rem;" role="progressbar"
+         aria-valuenow="@_unlocked" aria-valuemin="0" aria-valuemax="@AchievementCatalog.All.Count"
+         aria-label="Achievements unlocked">
+        <div class="bar-fill" style="width: @Format.Percent(_unlocked / (double)AchievementCatalog.All.Count)"></div>
+    </div>
+
+    <div class="segmented" role="group" aria-label="Filter achievements">
+        <button type="button" aria-pressed="@(_filter == Filter.All)" @onclick="() => _filter = Filter.All">All</button>
+        <button type="button" aria-pressed="@(_filter == Filter.Unlocked)" @onclick="() => _filter = Filter.Unlocked">Unlocked</button>
+        <button type="button" aria-pressed="@(_filter == Filter.Locked)" @onclick="() => _filter = Filter.Locked">Locked</button>
+    </div>
+</div>
+
+@foreach (IGrouping<AchievementCategory, Achievement> group in Visible)
+{
+    <section class="section" style="margin-top: var(--space-6);">
+        <div class="section-head">
+            <h2>@Describe(group.Key)</h2>
+            <span class="spacer"></span>
+            <span class="badge">
+                @group.Count(a => Store.Profile.HasUnlocked(a.Id)) / @group.Count()
+            </span>
+        </div>
+
+        <div class="grid grid-badges stagger">
+            @foreach (Achievement achievement in group)
+            {
+                bool unlocked = Store.Profile.HasUnlocked(achievement.Id);
+                double progress = AchievementEngine.ProgressOf(achievement, Store.Library, Store.Now);
+
+                <div class="trophy" data-locked="@((!unlocked).ToString().ToLowerInvariant())"
+                     data-tier="@achievement.Tier" @key="achievement.Id">
+                    <div class="trophy-glyph">@(unlocked ? achievement.Emoji : "🔒")</div>
+
+                    <p class="trophy-name">@achievement.Name</p>
+                    <p class="trophy-desc">@achievement.Description</p>
+
+                    @if (unlocked)
+                    {
+                        <span class="badge badge-good" style="margin-top: var(--space-1);">
+                            <Icon Name="check" Size="11" />
+                            @UnlockedOn(achievement.Id)
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge" style="margin-top: var(--space-1);">+@achievement.XpReward XP</span>
+
+                        @if (progress > 0)
+                        {
+                            <div class="bar bar-sm" style="width: 100%; margin-top: var(--space-1);"
+                                 role="progressbar" aria-valuenow="@((int)(progress * 100))"
+                                 aria-valuemin="0" aria-valuemax="100"
+                                 aria-label="@($"Progress towards {achievement.Name}")">
+                                <div class="bar-fill" style="width: @Format.Percent(progress)"></div>
+                            </div>
+                            <span class="muted" style="font-size: var(--text-2xs);">@Format.PercentLabel(progress)</span>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private enum Filter { All, Unlocked, Locked }
+
+    private Filter _filter = Filter.All;
+    private int _unlocked;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Refresh;
+        Recount();
+    }
+
+    protected override void OnParametersSet() => Recount();
+
+    private void Recount() =>
+        _unlocked = AchievementCatalog.All.Count(a => Store.Profile.HasUnlocked(a.Id));
+
+    private IEnumerable<IGrouping<AchievementCategory, Achievement>> Visible =>
+        AchievementCatalog.All
+            .Where(Matches)
+            .GroupBy(a => a.Category)
+            .Where(g => g.Any());
+
+    private bool Matches(Achievement achievement) => _filter switch
+    {
+        Filter.Unlocked => Store.Profile.HasUnlocked(achievement.Id),
+        Filter.Locked => !Store.Profile.HasUnlocked(achievement.Id),
+        _ => true,
+    };
+
+    private string UnlockedOn(string id) =>
+        Store.Profile.AchievementDates.TryGetValue(id, out DateTimeOffset at)
+            ? at.LocalDateTime.ToString("d MMM yyyy", CultureInfo.CurrentCulture)
+            : "Unlocked";
+
+    private static string Describe(AchievementCategory category) => category switch
+    {
+        AchievementCategory.Milestones => "Milestones",
+        AchievementCategory.Consistency => "Consistency",
+        AchievementCategory.Accuracy => "Accuracy",
+        AchievementCategory.Collection => "Collection",
+        AchievementCategory.Mastery => "Mastery",
+        _ => "Curiosity",
+    };
+
+    private void Refresh()
+    {
+        Recount();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Store.Changed -= Refresh;
+}

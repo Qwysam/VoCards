@@ -1,0 +1,344 @@
+@page "/stats"
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+
+<PageTitle>Statistics — VoCards</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Statistics</h1>
+        <p>@Format.Count(Store.Library.History.Count) reviews recorded · @Format.Duration(_stats.TimeStudiedAllTime) studied all time</p>
+    </div>
+
+    <div class="page-actions">
+        <div class="segmented" role="group" aria-label="Time range">
+            <button type="button" aria-pressed="@(_range == 30)" @onclick="() => SetRange(30)">30 d</button>
+            <button type="button" aria-pressed="@(_range == 90)" @onclick="() => SetRange(90)">90 d</button>
+            <button type="button" aria-pressed="@(_range == 364)" @onclick="() => SetRange(364)">1 y</button>
+        </div>
+    </div>
+</div>
+
+@* ================================================================= tiles *@
+<section class="grid grid-stats stagger">
+    <StatTile Label="Current streak" Value="@($"{_stats.CurrentStreak} d")" Icon="flame" Tone="accent"
+              Meta="@($"best {_stats.LongestStreak} {(_stats.LongestStreak == 1 ? "day" : "days")}")" />
+
+    <StatTile Label="Retention" Value="@Format.PercentLabel(_stats.LifetimeRetention)" Icon="target"
+              Tone="@(_stats.LifetimeRetention >= 0.85 ? "good" : "warning")"
+              Meta="lifetime recall rate" Progress="@_stats.LifetimeRetention" />
+
+    <StatTile Label="Mastery" Value="@Format.PercentLabel(_stats.OverallMastery)" Icon="check"
+              Meta="@($"{_stats.States.Mature} mature cards")" Progress="@_stats.OverallMastery" />
+
+    <StatTile Label="This week" Value="@Format.Count(_stats.ReviewsThisWeek)" Icon="calendar"
+              Meta="@($"{Format.Count(Store.Profile.LifetimeReviews)} lifetime")" />
+</section>
+
+@* ============================================================== activity *@
+<section class="section">
+    <div class="panel">
+        <div class="panel-head">
+            <h2>Activity</h2>
+            <span class="spacer"></span>
+            <span class="badge">@Format.Count(_activity.Sum(a => a.Reviews)) reviews</span>
+        </div>
+        <div class="panel-body">
+            <ActivityHeatmap Days="_activity" Threshold="_threshold" />
+        </div>
+    </div>
+</section>
+
+<div class="grid grid-2" style="margin-top: var(--space-6); align-items: start;">
+    @* ------------------------------------------------------- composition *@
+    <section class="panel">
+        <div class="panel-head"><h2>Card lifecycle</h2></div>
+        <div class="panel-body">
+            <StateDonut Breakdown="_stats.States" />
+        </div>
+    </section>
+
+    @* ----------------------------------------------------------- forecast *@
+    <section class="panel">
+        <div class="panel-head">
+            <h2>Coming due</h2>
+            <span class="spacer"></span>
+            <span class="badge">next 30 days</span>
+        </div>
+        <div class="panel-body">
+            @if (_forecast.Any(f => f.Due > 0))
+            {
+                <BarChart Points="_forecast" Height="200" />
+            }
+            else
+            {
+                <p class="muted" style="font-size: var(--text-sm); text-align: center; padding: var(--space-6) 0;">
+                    Nothing scheduled in the next 30 days.
+                </p>
+            }
+        </div>
+    </section>
+</div>
+
+@* ============================================================= retention *@
+<section class="section">
+    <div class="panel">
+        <div class="panel-head">
+            <h2>Retention by interval</h2>
+            <span class="spacer"></span>
+            <span class="badge badge-good">target 90%</span>
+        </div>
+        <div class="panel-body">
+            <RetentionChart Points="_retention" />
+        </div>
+    </div>
+</section>
+
+@* ========================================================== when you study *@
+<section class="section">
+    <div class="panel">
+        <div class="panel-head"><h2>When you study</h2></div>
+        <div class="panel-body">
+            @if (_byHour.Sum() == 0)
+            {
+                <p class="muted" style="font-size: var(--text-sm); text-align: center; padding: var(--space-4) 0;">
+                    No reviews recorded yet.
+                </p>
+            }
+            else
+            {
+                <div class="hour-chart" role="img" aria-label="@HourAriaLabel">
+                    @for (int hour = 0; hour < 24; hour++)
+                    {
+                        int count = _byHour[hour];
+                        double fraction = _peakHour == 0 ? 0 : (double)count / _peakHour;
+
+                        <div class="hour-col tip" data-tip="@($"{hour:00}:00 — {count} reviews")">
+                            <div class="hour-bar" data-empty="@((count == 0).ToString().ToLowerInvariant())"
+                                 style="height: @Format.Percent(fraction);"></div>
+                            @if (hour % 6 == 0)
+                            {
+                                <span class="hour-label">@hour</span>
+                            }
+                            else
+                            {
+                                <span class="hour-label">&nbsp;</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@* ============================================================== per deck *@
+<section class="section">
+    <div class="panel">
+        <div class="panel-head"><h2>By deck</h2></div>
+
+        @if (_perDeck.Count == 0)
+        {
+            <EmptyState Glyph="📊" Title="No decks yet" Description="Deck statistics appear once you have a deck." />
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Deck</th>
+                            <th style="width: 5rem;">Cards</th>
+                            <th style="width: 5rem;">Due</th>
+                            <th style="width: 11rem;">Mastery</th>
+                            <th style="width: 6rem;">Accuracy</th>
+                            <th style="width: 6rem;">Reviews</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (DeckStats deck in _perDeck)
+                        {
+                            <tr @key="deck.DeckId" data-deck="@deck.ColorToken">
+                                <td>
+                                    <a href="decks/@deck.DeckId" style="color: inherit; text-decoration: none;">
+                                        <strong>@deck.Emoji @deck.Name</strong>
+                                    </a>
+                                    @if (deck.LeechCount > 0)
+                                    {
+                                        <span class="badge badge-warning" style="margin-left: 6px;">@deck.LeechCount leech</span>
+                                    }
+                                </td>
+                                <td class="tnum">@deck.TotalCards</td>
+                                <td class="tnum">
+                                    @if (deck.DueNow > 0)
+                                    {
+                                        <span class="badge badge-accent">@deck.DueNow</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="row" style="gap: var(--space-2);">
+                                        <div class="bar bar-sm" style="flex: 1;">
+                                            <div class="bar-fill"
+                                                 style="width: @Format.Percent(deck.Mastery); background: var(--deck);"></div>
+                                        </div>
+                                        <span class="tnum muted" style="font-size: var(--text-xs); min-width: 2.5rem;">
+                                            @Format.PercentLabel(deck.Mastery)
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="tnum">
+                                    @(deck.ReviewsAllTime == 0 ? "—" : Format.PercentLabel(deck.Accuracy))
+                                </td>
+                                <td class="tnum muted">@Format.Count(deck.ReviewsAllTime)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+@* ========================================================= hardest cards *@
+@if (_hardest.Count > 0)
+{
+    <section class="section">
+        <div class="panel">
+            <div class="panel-head">
+                <h2>Giving you the most trouble</h2>
+                <span class="spacer"></span>
+                <a class="btn btn-ghost btn-sm" href="browse">Open in browse <Icon Name="chevron-right" Size="14" /></a>
+            </div>
+
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Card</th>
+                            <th style="width: 6rem;">Accuracy</th>
+                            <th style="width: 5rem;">Lapses</th>
+                            <th style="width: 6rem;">Reviews</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (Card card in _hardest)
+                        {
+                            <tr @key="card.Id">
+                                <td>
+                                    <strong>@card.Front</strong>
+                                    <span class="muted"> → @TextTools.Ellipsize(card.Back, 30)</span>
+                                </td>
+                                <td class="tnum">@Format.PercentLabel(card.Accuracy)</td>
+                                <td class="tnum">
+                                    @card.Lapses
+                                    @if (card.IsLeech)
+                                    {
+                                        <span class="badge badge-critical" style="margin-left: 4px;">leech</span>
+                                    }
+                                </td>
+                                <td class="tnum muted">@card.ReviewCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+}
+
+<style>
+    .hour-chart {
+        display: grid;
+        grid-template-columns: repeat(24, 1fr);
+        align-items: end;
+        gap: 3px;
+        height: 130px;
+    }
+
+    .hour-col {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        height: 100%;
+        gap: 4px;
+    }
+
+    .hour-bar {
+        min-height: 2px;
+        border-radius: 4px 4px 0 0;
+        background: var(--viz-1);
+        transition: opacity var(--dur-fast) var(--ease-out);
+    }
+
+    /* An hour with no reviews keeps a baseline tick, but a recessive one -
+       painting it in the series colour read as a solid blue rule. */
+    .hour-bar[data-empty="true"] {
+        background: var(--border-default);
+    }
+
+    .hour-col:hover .hour-bar { opacity: 0.8; }
+
+    .hour-label {
+        font-size: var(--text-2xs);
+        color: var(--text-muted);
+        text-align: center;
+    }
+</style>
+
+@code {
+    private LibraryStats _stats = null!;
+    private IReadOnlyList<DailyActivity> _activity = [];
+    private IReadOnlyList<ForecastDay> _forecast = [];
+    private IReadOnlyList<RetentionPoint> _retention = [];
+    private IReadOnlyList<DeckStats> _perDeck = [];
+    private IReadOnlyList<Card> _hardest = [];
+    private IReadOnlyList<int> _byHour = [];
+    private int _threshold = 20;
+    private int _peakHour;
+    private int _range = 364;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Reload;
+        Reload();
+    }
+
+    private void SetRange(int days)
+    {
+        _range = days;
+        Reload();
+    }
+
+    private void Reload()
+    {
+        DateTimeOffset now = Store.Now;
+
+        _stats = StatsService.Summarize(Store.Library, now);
+        _activity = StatsService.Activity(Store.Library, now, days: _range);
+        _threshold = Math.Max(StatsService.BusyDayThreshold(_activity), Store.Profile.DailyGoal);
+        _forecast = StatsService.Forecast(Store.Library, now, days: 30);
+        _retention = StatsService.RetentionCurve(Store.Library);
+        _perDeck = StatsService.PerDeck(Store.Library, now);
+        _hardest = StatsService.HardestCards(Store.Library, take: 10);
+        _byHour = StatsService.ReviewsByHour(Store.Library);
+        _peakHour = _byHour.Count == 0 ? 0 : _byHour.Max();
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string HourAriaLabel
+    {
+        get
+        {
+            int peak = _byHour.Count == 0 ? 0 : _byHour.ToList().IndexOf(_peakHour);
+            return $"Reviews by hour of day. Busiest hour is {peak:00}:00 with {_peakHour} reviews.";
+        }
+    }
+
+    public void Dispose() => Store.Changed -= Reload;
+}

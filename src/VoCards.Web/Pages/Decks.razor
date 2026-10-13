@@ -1,0 +1,204 @@
+@page "/decks"
+@implements IDisposable
+@inject LibraryStore Store
+@inject AppState State
+@inject ToastService Toasts
+@inject KeyboardService Keys
+@inject NavigationManager Nav
+@inject JsBridge Js
+
+<PageTitle>Decks — VoCards</PageTitle>
+
+<div class="page-head">
+    <div>
+        <h1>Decks</h1>
+        <p>@Store.Library.DeckCount decks · @Format.Count(Store.Library.TotalCards) cards · @Format.PercentLabel(Store.Library.OverallMastery) mastered</p>
+    </div>
+
+    <div class="page-actions">
+        <a class="btn btn-outline" href="settings#data">
+            <Icon Name="upload" Size="16" />
+            <span class="hide-narrow">Import</span>
+        </a>
+        <button type="button" class="btn btn-primary" @onclick="() => _creating = true">
+            <Icon Name="plus" Size="16" />
+            New deck
+        </button>
+    </div>
+</div>
+
+<div class="row-wrap" style="margin-bottom: var(--space-5);">
+    <div class="input-search" style="flex: 1; min-width: 12rem; max-width: 22rem;">
+        <Icon Name="search" Size="16" />
+        <input id="deck-filter" class="input" type="search" placeholder="Filter decks…"
+               value="@_filter" @oninput="OnFilter" />
+    </div>
+
+    <div class="segmented" role="group" aria-label="Sort decks">
+        <button type="button" aria-pressed="@(_sort == DeckSort.Default)" @onclick="() => SetSort(DeckSort.Default)">Pinned</button>
+        <button type="button" aria-pressed="@(_sort == DeckSort.Due)" @onclick="() => SetSort(DeckSort.Due)">Most due</button>
+        <button type="button" aria-pressed="@(_sort == DeckSort.Mastery)" @onclick="() => SetSort(DeckSort.Mastery)">Least mastered</button>
+        <button type="button" aria-pressed="@(_sort == DeckSort.Size)" @onclick="() => SetSort(DeckSort.Size)">Largest</button>
+    </div>
+</div>
+
+@if (Visible.Count == 0)
+{
+    <div class="panel">
+        @if (Store.Library.DeckCount == 0)
+        {
+            <EmptyState Glyph="🗂️" Title="No decks yet"
+                        Description="A deck is a themed set of cards. Create one, or load the sample library to see how it all works.">
+                <Action>
+                    <div class="row" style="justify-content: center;">
+                        <button type="button" class="btn btn-outline" @onclick="LoadSamplesAsync">Load sample decks</button>
+                        <button type="button" class="btn btn-primary" @onclick="() => _creating = true">Create a deck</button>
+                    </div>
+                </Action>
+            </EmptyState>
+        }
+        else
+        {
+            <EmptyState Glyph="🔍" Title="No decks match that"
+                        Description="@($"Nothing is called “{_filter}”. Try a shorter search.")" />
+        }
+    </div>
+}
+else
+{
+    <div class="grid grid-decks stagger">
+        @foreach (Deck deck in Visible)
+        {
+            <DeckCard Deck="deck" Changed="Refresh" @key="deck.Id" />
+        }
+    </div>
+}
+
+@* ----------------------------------------------------------- new deck -- *@
+@if (_creating)
+{
+    <DeckEditor OnSave="CreateAsync" OnCancel="() => _creating = false" />
+}
+
+<style>
+    @@media (max-width: 560px) {
+        .hide-narrow { display: none; }
+    }
+</style>
+
+@code {
+    [SupplyParameterFromQuery(Name = "new")]
+    public string? NewFlag { get; set; }
+
+    private enum DeckSort { Default, Due, Mastery, Size }
+
+    private string _filter = string.Empty;
+    private DeckSort _sort = DeckSort.Default;
+    private bool _creating;
+
+    protected override void OnInitialized()
+    {
+        Store.Changed += Refresh;
+        Keys.Push(this, HandleKey);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (NewFlag == "1")
+        {
+            _creating = true;
+        }
+    }
+
+    private IReadOnlyList<Deck> Visible
+    {
+        get
+        {
+            IEnumerable<Deck> decks = Store.Library.Decks;
+
+            if (_filter.Trim() is { Length: > 0 } needle)
+            {
+                decks = decks.Where(d =>
+                    TextTools.ContainsLoose(d.Name, needle) || TextTools.ContainsLoose(d.Description, needle));
+            }
+
+            DateTimeOffset now = Store.Now;
+
+            return _sort switch
+            {
+                DeckSort.Due => decks.OrderByDescending(d => d.DueCount(now)).ToArray(),
+                DeckSort.Mastery => decks.OrderBy(d => d.Mastery).ToArray(),
+                DeckSort.Size => decks.OrderByDescending(d => d.TotalCards).ToArray(),
+                _ => decks.ToArray(),
+            };
+        }
+    }
+
+    private bool HandleKey(KeyPress press)
+    {
+        if (press.Lower == "n" && !_creating)
+        {
+            _creating = true;
+            InvokeAsync(StateHasChanged);
+            return true;
+        }
+
+        if (press.Key == "/")
+        {
+            _ = FocusFilterAsync();
+            return true;
+        }
+
+        return false;
+    }
+
+    private Task FocusFilterAsync() => Js.FocusAsync("#deck-filter").AsTask();
+
+    private void OnFilter(ChangeEventArgs args) => _filter = args.Value?.ToString() ?? string.Empty;
+
+    private void SetSort(DeckSort sort) => _sort = sort;
+
+    private Task CreateAsync(DeckDraft draft)
+    {
+        var result = Store.Library.CreateDeck(draft.Name, draft.Description, draft.Emoji, draft.Color);
+
+        if (result.IsFailure)
+        {
+            Toasts.Error(result.Error!);
+            return Task.CompletedTask;
+        }
+
+        Deck deck = result.Value!;
+        deck.SetLanguages(draft.FrontLanguage, draft.BackLanguage);
+
+        _creating = false;
+        Store.MarkChanged();
+        Toasts.Success($"Created “{deck.Name}”.");
+
+        Nav.NavigateTo($"/decks/{deck.Id}");
+        return Task.CompletedTask;
+    }
+
+    private Task LoadSamplesAsync()
+    {
+        foreach (SeedDeck seed in SeedLibrary.Available)
+        {
+            if (SeedLibrary.Build(seed.Name) is { } deck && !Store.Library.HasDeckNamed(deck.Name))
+            {
+                Store.Library.AddDeck(deck);
+            }
+        }
+
+        Store.MarkChanged();
+        Toasts.Success("Sample decks added.");
+        return Task.CompletedTask;
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Store.Changed -= Refresh;
+        Keys.Remove(this);
+    }
+}

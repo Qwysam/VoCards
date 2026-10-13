@@ -1,0 +1,40 @@
+@* A circular progress meter: streak ring, daily goal, deck mastery. *@
+
+<div class="ring" style="width: @(Size)px; height: @(Size)px;">
+    <svg width="@Size" height="@Size" viewBox="0 0 @Size @Size" role="img"
+         aria-label="@(Label ?? "Progress"): @Format.Percent(Value)">
+        <circle class="ring-track" cx="@Half" cy="@Half" r="@Radius" stroke-width="@Thickness" />
+        <circle class="ring-fill" cx="@Half" cy="@Half" r="@Radius" stroke-width="@Thickness"
+                stroke="@Color" stroke-dasharray="@Circumference"
+                stroke-dashoffset="@Offset" />
+    </svg>
+
+    @if (ChildContent is not null)
+    {
+        <div class="ring-label">@ChildContent</div>
+    }
+</div>
+
+@code {
+    /// <summary>Fraction filled, 0..1. Values outside the range are clamped.</summary>
+    [Parameter] public double Value { get; set; }
+
+    [Parameter] public int Size { get; set; } = 96;
+
+    [Parameter] public int Thickness { get; set; } = 8;
+
+    [Parameter] public string Color { get; set; } = "var(--accent-500)";
+
+    [Parameter] public string? Label { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private double Half => Size / 2d;
+
+    private double Radius => (Size - Thickness) / 2d;
+
+    private string Circumference => Format.Number(2 * Math.PI * Radius);
+
+    private string Offset =>
+        Format.Number(2 * Math.PI * Radius * (1 - Math.Clamp(Value, 0d, 1d)));
+}
